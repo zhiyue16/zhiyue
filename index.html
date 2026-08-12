@@ -781,22 +781,21 @@ function render(){
   const now = Date.now();
   let displayMs, sub='', phase='', ringClass='', progress=0, title='随机提示音专注计时器';
 
-  const focusLeft = paused ? leftMs : endAt - now;
-  const restLeft  = paused ? leftMs : endAt - now;
+  const leftMsNow = paused ? leftMs : endAt - now;
 
   switch(mode){
     case 'idle':
       displayMs = cfg.focus*60000; phase='准备开始'; sub='点击开始，进入专注'; progress=0;
       break;
     case 'focus':
-      displayMs = focusLeft; phase='专注中'; ringClass='focus';
-      progress = totalMs ? 1 - focusLeft/totalMs : 0;
+      displayMs = leftMsNow; phase='专注中'; ringClass='focus';
+      progress = totalMs ? 1 - leftMsNow/totalMs : 0;
       sub = paused ? '已暂停' : '';
       title = `${fmt(displayMs)} 专注中`;
       break;
     case 'mini':
-      displayMs = focusLeft; phase='专注中 · 闭眼休息'; ringClass='focus';
-      progress = totalMs ? 1 - focusLeft/totalMs : 0;
+      displayMs = leftMsNow; phase='专注中 · 闭眼休息'; ringClass='focus';
+      progress = totalMs ? 1 - leftMsNow/totalMs : 0;
       sub = '';
       title = '闭眼休息 10 秒';
       break;
@@ -806,8 +805,8 @@ function render(){
       title='🎉 专注完成';
       break;
     case 'rest':
-      displayMs = restLeft; phase='大休息中'; ringClass='rest';
-      progress = totalMs ? 1 - restLeft/totalMs : 0;
+      displayMs = leftMsNow; phase='大休息中'; ringClass='rest';
+      progress = totalMs ? 1 - leftMsNow/totalMs : 0;
       sub = paused ? '已暂停' : '放松一下吧';
       title = `${fmt(displayMs)} 休息中`;
       break;
