@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#007aff">
+<!-- [优化1] 新增 iOS PWA 元信息：添加到主屏幕后以独立应用形态运行，状态栏与标题更贴合 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="专注计时器">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -60,7 +65,6 @@
   .blob2{ width:560px;height:560px; background:radial-gradient(circle,#ffc2cf,#f5c6f7); bottom:-220px; right:-140px; opacity:.5; }
   .blob3{ width:420px;height:420px; background:radial-gradient(circle,#a9ecd0,#a8e6f5); top:45%; left:60%; opacity:.4; }
   html[data-theme="dark"] .blob{ opacity:.17; }
-
   /* ---------- 顶部胶囊导航 ---------- */
   .topbar{
     position:relative; z-index:2;
@@ -88,7 +92,6 @@
   /* 图标翻转动画：仅 transform+opacity（合成层属性），不触发重排，零卡顿 */
   .tb-btn .tb-ic{ display:inline-block; transition:transform .38s cubic-bezier(.2,.8,.3,1.1), opacity .18s; }
   .tb-btn.spin .tb-ic{ transform:rotate(135deg); }
-
   /* ---------- 主区域（无框） ---------- */
   main{
     position:relative; z-index:1; flex:1;
@@ -102,14 +105,12 @@
   .phase-label .phase-dot{ width:8px; height:8px; border-radius:50%; background:var(--sub); transition:background .3s, box-shadow .3s; }
   .phase-focus .phase-dot{ background:var(--green); box-shadow:0 0 10px var(--green); }
   .phase-rest .phase-dot{ background:var(--red); box-shadow:0 0 10px var(--red); }
-
   .ring-wrap{ position:relative; width:330px; height:330px; margin:14px 0 4px; }
   .ring-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); }
   .ring-bg{ fill:none; stroke:var(--hairline); stroke-width:10; }
   .ring-fg{ fill:none; stroke:var(--sub); stroke-width:10; stroke-linecap:round; transition:stroke-dashoffset .35s linear, stroke .4s; }
   .ring-fg.focus{ stroke:var(--green); filter:drop-shadow(0 0 10px rgba(40,200,64,.35)); }
   .ring-fg.rest{ stroke:var(--red); filter:drop-shadow(0 0 10px rgba(255,69,58,.35)); }
-
   .timer-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding-top:44px; } /* 补偿下方副文本行，使时间居中于圆心 */
   .time-row{ display:flex; align-items:center; gap:10px; }
   .time-text{
@@ -133,7 +134,6 @@
   @media (prefers-reduced-motion:reduce){
     *{ animation:none !important; transition:none !important; }
   }
-
   /* 主题切换：整页背景晕染扩散 */
   .theme-ripple{
     position:fixed; z-index:100; border-radius:50%; pointer-events:none;
@@ -143,7 +143,6 @@
   .theme-ripple.go{ transform:translate(-50%,-50%) scale(1); }
   .theme-ripple.to-dark{ background:#0a0a0d; }  /* 亮→暗：黑色扩散 */
   .theme-ripple.to-light{ background:#f4f4f7; } /* 暗→亮：浅色扩散 */
-
   /* 放弃确认弹窗 */
   .abandon-mask{
     position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
@@ -171,7 +170,6 @@
   .abandon-btn.danger{ color:#ff453a; background:rgba(255,69,58,.12); }
   html[data-theme="dark"] .abandon-btn.danger{ color:#ff6961; background:rgba(255,105,97,.16); }
   .time-sub{ font-size:13px; color:var(--sub); min-height:17px; }
-
   /* 闭眼休息遮罩 */
   .mini-overlay{
     position:absolute; inset:-6px; border-radius:50%; display:none;
@@ -182,7 +180,6 @@
   .mini-overlay.show{ display:flex; }
   .mini-overlay .mini-title{ font-size:15px; font-weight:600; color:var(--sub); letter-spacing:3px; }
   .mini-overlay .mini-count{ font-size:72px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--accent); line-height:1; }
-
   /* 控制按钮 */
   .controls{ display:flex; gap:12px; margin:16px 0 6px; }
   .btn{
@@ -198,7 +195,6 @@
   .btn.hidden{ display:none; }
   .hint{ font-size:12px; color:var(--sub); margin-top:4px; user-select:none; }
   kbd{ background:var(--input-bg); border:1px solid var(--hairline); border-radius:6px; padding:1px 7px; font-family:inherit; font-size:11px; }
-
   /* ---------- 底部统计胶囊 ---------- */
   .stats-bar{
     position:relative; z-index:2;
@@ -218,7 +214,6 @@
   .stat.c-green .num{ color:var(--green); }
   .stat.c-blue .num{ color:var(--accent); }
   .stat.c-orange .num{ color:#ff9f0a; }
-
   /* ---------- 二级面板（设置 / 记录） ---------- */
   .scrim{
     position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.08);
@@ -251,7 +246,6 @@
   .panel-body{ overflow-y:auto; padding:8px 20px 16px; scrollbar-width:thin; }
   .panel-page{ display:none; }
   .panel-page.active{ display:block; }
-
   .group-label{ font-size:11px; font-weight:600; letter-spacing:1px; color:var(--sub); margin:14px 2px 6px; }
   .field{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); }
   .field:last-of-type{ border-bottom:none; }
@@ -266,7 +260,6 @@
   .num-input:disabled{ opacity:.45; }
   .range-pair{ display:flex; align-items:center; gap:6px; }
   .range-pair .num-input{ width:56px; }
-
   .sound-row{ display:flex; gap:8px; margin-top:2px; }
   .sound-chip{
     flex:1; border:1.5px solid transparent; background:var(--input-bg); border-radius:13px;
@@ -277,7 +270,6 @@
   .sound-chip.active{ border-color:var(--accent); color:var(--accent); font-weight:700; background:rgba(0,122,255,.1); }
   .sound-chip:active{ transform:scale(.96); }
   .warn-text{ font-size:12px; color:#ff9f0a; margin-top:9px; min-height:15px; }
-
   /* 音量 */
   .vol-head{ display:flex; justify-content:space-between; align-items:center; }
   .vol-val{ font-size:12.5px; font-weight:600; color:var(--sub); font-variant-numeric:tabular-nums; }
@@ -297,7 +289,10 @@
     width:17px; height:17px; border:none; border-radius:50%; background:#fff;
     box-shadow:0 1px 4px rgba(0,0,0,.25); cursor:pointer;
   }
-
+  /* [优化2] Firefox 下默认轨道/进度条有不透明背景，会盖住输入框上的渐变填充；
+     置为透明后，音量已填充/未填充的蓝色渐变在 Firefox 中与 Chrome 表现一致 */
+  .vol-slider::-moz-range-track{ background:transparent; border:none; }
+  .vol-slider::-moz-range-progress{ background:transparent; }
   /* 关于 */
   .about{
     margin-top:16px; padding:14px 4px 4px;
@@ -308,7 +303,6 @@
   .about-desc{ font-size:11.5px; color:var(--sub); margin-top:4px; }
   .about-meta{ font-size:11px; color:var(--sub); margin-top:8px; display:flex; justify-content:center; gap:6px; flex-wrap:wrap; }
   .about-sep{ opacity:.5; }
-
   .log-list{ display:flex; flex-direction:column; }
   .log-item{ display:flex; gap:9px; align-items:baseline; padding:9px 2px; border-bottom:1px solid var(--hairline); font-size:13px; }
   .log-item:last-child{ border-bottom:none; }
@@ -323,28 +317,26 @@
 </head>
 <body>
   <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
-
   <header class="topbar">
     <div class="brand"><span class="dot"></span>随机提示音专注计时器</div>
     <div class="top-actions">
-      <button class="tb-btn" id="panelBtn" title="设置与记录"><span class="tb-ic">⚙︎</span></button>
-      <button class="tb-btn" id="themeBtn" title="切换浅色 / 深色"><span class="tb-ic" id="themeIc">🌙</span></button>
+      <!-- [优化3] 图标按钮补充 aria-label，屏幕阅读器可识别；type="button" 避免未来被包进 form 时误提交 -->
+      <button type="button" class="tb-btn" id="panelBtn" title="设置与记录" aria-label="设置与记录"><span class="tb-ic">⚙︎</span></button>
+      <button type="button" class="tb-btn" id="themeBtn" title="切换浅色 / 深色" aria-label="切换浅色 / 深色"><span class="tb-ic" id="themeIc">🌙</span></button>
     </div>
   </header>
-
   <main>
     <div class="phase-label" id="phaseLabel"><span class="phase-dot"></span><span id="phaseText">准备开始</span></div>
-
     <div class="ring-wrap" id="ringWrap">
-      <svg viewBox="0 0 300 300">
+      <svg viewBox="0 0 300 300" focusable="false" aria-hidden="true">
         <circle class="ring-bg" cx="150" cy="150" r="132"></circle>
         <circle class="ring-fg" id="ringFg" cx="150" cy="150" r="132"></circle>
       </svg>
       <div class="timer-center">
         <div class="time-row">
-          <button class="adjust-btn" id="minusBtn" title="减少 5 分钟">−</button>
+          <button type="button" class="adjust-btn" id="minusBtn" title="减少 5 分钟" aria-label="减少 5 分钟">−</button>
           <div class="time-text" id="timeText">90:00</div>
-          <button class="adjust-btn" id="plusBtn" title="增加 5 分钟">+</button>
+          <button type="button" class="adjust-btn" id="plusBtn" title="增加 5 分钟" aria-label="增加 5 分钟">+</button>
         </div>
         <div class="time-range" id="timeRange"></div>
         <div class="time-sub" id="timeSub">点击开始，进入专注</div>
@@ -355,52 +347,48 @@
         <div class="mini-title" style="letter-spacing:1px;font-size:12px;">秒后继续专注</div>
       </div>
     </div>
-
     <div class="controls" id="controls">
-      <button class="btn btn-green" id="startBtn">开始专注</button>
-      <button class="btn btn-primary hidden" id="pauseBtn">暂停</button>
-      <button class="btn btn-ghost hidden" id="stopBtn">结束</button>
-      <button class="btn btn-green hidden" id="restBtn">开始休息</button>
-      <button class="btn btn-ghost hidden" id="skipRestBtn">跳过休息</button>
-      <button class="btn btn-primary hidden" id="doneBtn">完成，回到准备</button>
+      <button type="button" class="btn btn-green" id="startBtn">开始专注</button>
+      <button type="button" class="btn btn-primary hidden" id="pauseBtn">暂停</button>
+      <button type="button" class="btn btn-ghost hidden" id="stopBtn">结束</button>
+      <button type="button" class="btn btn-green hidden" id="restBtn">开始休息</button>
+      <button type="button" class="btn btn-ghost hidden" id="skipRestBtn">跳过休息</button>
+      <button type="button" class="btn btn-primary hidden" id="doneBtn">完成，回到准备</button>
     </div>
     <div class="hint">提示音将随机响起，听到后闭眼休息 10 秒 · <kbd>空格</kbd> 暂停 / 继续 · 悬停计时器 ±5 分钟</div>
   </main>
-
   <footer class="stats-bar">
     <div class="stat c-green"><div class="num"><span id="statMinutes">0</span><small>分钟</small></div><div class="lbl">今日专注</div></div>
     <div class="stat c-blue"><div class="num" id="statRounds">0</div><div class="lbl">完成轮次</div></div>
-    <div class="stat c-orange"><div class="num" id="statChimes">0</div><div class="lbl">本次提示音</div></div>
+    <div class="stat c-orange"><div class="num" id="statChimes">0</div><div class="lbl">这次提示音</div></div>
   </footer>
-
   <!-- 放弃确认弹窗 -->
-  <div class="abandon-mask" id="abandonMask">
+  <div class="abandon-mask" id="abandonMask" role="dialog" aria-modal="true" aria-labelledby="abandonTitleText">
     <div class="abandon-box">
-      <div class="abandon-title">提前放弃专注？</div>
+      <div class="abandon-title" id="abandonTitleText">提前放弃专注？</div>
       <div class="abandon-desc" id="abandonDesc"></div>
       <div class="abandon-actions">
-        <button class="abandon-btn danger" id="abandonOk">放弃</button>
-        <button class="abandon-btn" id="abandonCancel">取消</button>
+        <button type="button" class="abandon-btn danger" id="abandonOk">放弃</button>
+        <button type="button" class="abandon-btn" id="abandonCancel">取消</button>
       </div>
     </div>
   </div>
-
   <!-- 二级面板：设置 / 记录 -->
   <div class="scrim" id="scrim"></div>
-  <div class="panel" id="panel">
+  <div class="panel" id="panel" role="dialog" aria-label="设置与记录">
     <div class="seg">
-      <button class="seg-btn active" data-page="settings">设置</button>
-      <button class="seg-btn" data-page="logs">记录</button>
+      <button type="button" class="seg-btn active" data-page="settings">设置</button>
+      <button type="button" class="seg-btn" data-page="logs">记录</button>
     </div>
     <div class="panel-body">
       <div class="panel-page active" id="pageSettings">
         <div class="group-label">时长</div>
         <div class="field">
-          <label>专注时长<span class="unit">5–180 分钟</span></label>
+          <label for="cfgFocus">专注时长<span class="unit">5–180 分钟</span></label>
           <span><input class="num-input" id="cfgFocus" type="number" min="5" max="180" value="90"><span class="unit">分钟</span></span>
         </div>
         <div class="field">
-          <label>大休息时长<span class="unit">1–120 分钟</span></label>
+          <label for="cfgRest">大休息时长<span class="unit">1–120 分钟</span></label>
           <span><input class="num-input" id="cfgRest" type="number" min="1" max="120" value="20"><span class="unit">分钟</span></span>
         </div>
         <div class="group-label">提示音</div>
@@ -416,24 +404,24 @@
         <div class="field" style="flex-direction:column;align-items:stretch;gap:9px;">
           <label>音色（点击试听）</label>
           <div class="sound-row">
-            <div class="sound-chip active" data-sound="bell"><span class="s-icon">🔔</span>铃声</div>
-            <div class="sound-chip" data-sound="ding"><span class="s-icon">🎐</span>叮</div>
-            <div class="sound-chip" data-sound="chime"><span class="s-icon">🎶</span>报时</div>
+            <div class="sound-chip active" data-sound="bell" role="button" tabindex="0"><span class="s-icon">🔔</span>铃声</div>
+            <div class="sound-chip" data-sound="ding" role="button" tabindex="0"><span class="s-icon">🎐</span>叮</div>
+            <div class="sound-chip" data-sound="chime" role="button" tabindex="0"><span class="s-icon">🎶</span>报时</div>
           </div>
           <div class="sound-row" style="margin-top:8px;">
-            <div class="sound-chip" data-sound="wood"><span class="s-icon">🪵</span>木鱼</div>
-            <div class="sound-chip" data-sound="xylo"><span class="s-icon">🪇</span>木琴</div>
-            <div class="sound-chip" data-sound="beep"><span class="s-icon">⚡</span>电子音</div>
+            <div class="sound-chip" data-sound="wood" role="button" tabindex="0"><span class="s-icon">🪵</span>木鱼</div>
+            <div class="sound-chip" data-sound="xylo" role="button" tabindex="0"><span class="s-icon">🪇</span>木琴</div>
+            <div class="sound-chip" data-sound="beep" role="button" tabindex="0"><span class="s-icon">⚡</span>电子音</div>
           </div>
         </div>
         <div class="field" style="flex-direction:column;align-items:stretch;gap:9px;">
           <div class="vol-head">
-            <label>音量</label>
+            <label for="cfgVol">音量</label>
             <span class="vol-val" id="volVal">100%</span>
           </div>
           <div class="vol-row">
-            <span class="vol-icon" id="volMute" title="点击静音 / 取消静音">🔊</span>
-            <input type="range" class="vol-slider" id="cfgVol" min="0" max="100" step="1" value="100">
+            <span class="vol-icon" id="volMute" title="点击静音 / 取消静音" role="button" tabindex="0" aria-label="静音切换">🔊</span>
+            <input type="range" class="vol-slider" id="cfgVol" min="0" max="100" step="1" value="100" aria-label="音量">
           </div>
         </div>
         <div class="warn-text" id="warnText"></div>
@@ -443,9 +431,9 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.4.0</span>
+            <span>版本 v1.5.0</span>
             <span class="about-sep">·</span>
-            <span>2026-08-12</span>
+            <span>2026-08-13</span>
           </div>
         </div>
       </div>
@@ -463,7 +451,15 @@ const clampNum = (v,a,b) => Math.min(b, Math.max(a, v));
 const pad = n => String(n).padStart(2,'0');
 const LS = { get(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?d:v; }catch(e){ return d; } },
              set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
-
+/* [优化4] HTML 转义工具：renderLogs 用 innerHTML 拼接日志文本，
+   虽然当前文本均由程序生成，但日志内容含数字/用户可改的配置，转义可杜绝潜在 XSS */
+const escHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* [优化5] 高频渲染元素缓存：render() 每 250ms 执行一次，原先每次都调用近 20 次 getElementById，
+   缓存后避免重复 DOM 查询，降低主线程开销（视觉与功能完全不变） */
+const dom = {};
+['phaseLabel','phaseText','ringWrap','ringFg','timeText','timeRange','timeSub',
+ 'miniOverlay','miniCount','startBtn','pauseBtn','stopBtn','restBtn',
+ 'skipRestBtn','doneBtn','statMinutes','statRounds','statChimes'].forEach(id => dom[id] = $(id));
 /* ================= 设置（含边界校验） ================= */
 const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100}, LS.get('rft_cfg',{}));
 function readSettings(){
@@ -485,17 +481,21 @@ function readSettings(){
   $(id).value = cfg[{cfgFocus:'focus',cfgMinInt:'minInt',cfgMaxInt:'maxInt',cfgRest:'rest'}[id]];
   $(id).addEventListener('change', ()=>{ readSettings(); if(mode==='idle') render(); });
 });
-
 /* ================= 主题 ================= */
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', cfg.theme);
   $('themeIc').textContent = cfg.theme==='dark' ? '☀︎' : '🌙';
+  // [优化6] 同步 <meta name="theme-color">：深色模式下移动端浏览器状态栏由蓝色变为深色，与页面融为一体
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if(metaTheme) metaTheme.setAttribute('content', cfg.theme==='dark' ? '#0a0a0d' : '#007aff');
 }
+let themeAnimating = false; // [优化7] 防止快速连点主题按钮导致多个 setTimeout/ripple 叠加、主题状态错乱
 $('themeBtn').addEventListener('click', e=>{
+  if(themeAnimating) return;
+  themeAnimating = true;
   const ic = $('themeIc');
   // 图标：先半转淡出 → 换图标 → 转正淡入
   ic.style.transform = 'rotate(-90deg) scale(.6)'; ic.style.opacity = '0';
-
   // 背景晕染：从点击处扩散一个整页圆形遮罩，新主题色随之铺开
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(!reduce){
@@ -509,15 +509,14 @@ $('themeBtn').addEventListener('click', e=>{
     requestAnimationFrame(()=>requestAnimationFrame(()=>ripple.classList.add('go')));
     setTimeout(()=>ripple.remove(), 750);
   }
-
   setTimeout(()=>{
     cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
     LS.set('rft_cfg', cfg); applyTheme();
     ic.style.transform = ''; ic.style.opacity = '';
+    themeAnimating = false; // [优化7] 动画结束后解锁
   }, reduce ? 0 : 480); // 圆即将铺满时切换底层，形成无缝晕染
 });
 applyTheme();
-
 /* ================= 二级面板（设置 / 记录） ================= */
 function openPanel(){ $('panel').classList.add('show'); $('scrim').classList.add('show'); $('panelBtn').classList.add('active','spin'); }
 function closePanel(){ $('panel').classList.remove('show'); $('scrim').classList.remove('show'); $('panelBtn').classList.remove('active','spin'); }
@@ -533,7 +532,6 @@ document.querySelectorAll('.seg-btn').forEach(b=>{
     $(b.dataset.page==='settings' ? 'pageSettings' : 'pageLogs').classList.add('active');
   });
 });
-
 /* ================= Web Audio 合成提示音 ================= */
 let actx = null, masterGain = null;
 function ac(){
@@ -658,12 +656,15 @@ document.querySelectorAll('.sound-chip').forEach(chip=>{
     LS.set('rft_cfg', cfg);
     playChime(1); // 切换即预览
   });
+  // [优化8] 音色 chip 为 div[role=button]，补充键盘可达性：Enter/Space 触发选择
+  chip.addEventListener('keydown', ev=>{
+    if(ev.key==='Enter' || ev.key===' '){ ev.preventDefault(); chip.click(); }
+  });
   if(chip.dataset.sound===cfg.sound){
     document.querySelectorAll('.sound-chip').forEach(c=>c.classList.remove('active'));
     chip.classList.add('active');
   }
 });
-
 /* ================= 音量 ================= */
 let lastVol = 100; // 静音前的音量，用于取消静音时恢复
 function applyVolume(){
@@ -683,35 +684,47 @@ $('cfgVol').addEventListener('input', ()=>{
 $('cfgVol').addEventListener('change', ()=>{
   if(cfg.volume>0) playChime(1); // 松手试听当前音量
 });
+// [优化8] 静音图标为 span[role=button]，支持键盘操作
 $('volMute').addEventListener('click', ()=>{
   if(cfg.volume > 0){ lastVol = cfg.volume; cfg.volume = 0; }
   else cfg.volume = lastVol > 0 ? lastVol : 100;
   applyVolume();
   LS.set('rft_cfg', cfg);
 });
+$('volMute').addEventListener('keydown', ev=>{
+  if(ev.key==='Enter' || ev.key===' '){ ev.preventDefault(); $('volMute').click(); }
+});
 applyVolume();
-
 /* ================= 统计 & 日志（localStorage） ================= */
-const todayKey = () => new Date().toLocaleDateString('sv'); // YYYY-MM-DD 本地
+// [优化9] 用本地时区手动拼 YYYY-MM-DD，替代 toLocaleDateString('sv')：
+// 后者依赖运行环境内置 sv 语言包，极少数精简环境会回退到其他格式导致跨天判断失效
+const todayKey = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+};
 let stats = LS.get('rft_stats', null);
 if(!stats || stats.date !== todayKey()) stats = {date: todayKey(), minutes:0, rounds:0};
 let logs = LS.get('rft_logs', []);
 function saveStats(){ stats.date = todayKey(); LS.set('rft_stats', stats); }
 function addLog(type, text){
   const t = new Date();
-  logs.unshift({time: pad(t.getHours())+':'+pad(t.getMinutes())+':'+pad(t.getSeconds()), type, text});
+  // [优化10] 每条日志带上日期，供 renderLogs 过滤“今日”记录
+  logs.unshift({date: todayKey(), time: pad(t.getHours())+':'+pad(t.getMinutes())+':'+pad(t.getSeconds()), type, text});
   if(logs.length>100) logs.length = 100;
   LS.set('rft_logs', logs);
   renderLogs();
 }
 function renderLogs(){
   const el = $('logList');
-  if(!logs.length){ el.innerHTML = '<div class="log-empty">暂无记录，开始一轮专注吧</div>'; return; }
-  el.innerHTML = logs.map(l=>
-    `<div class="log-item log-${l.type}"><span class="log-dot"></span><span class="log-time">${l.time}</span><span>${l.text}</span></div>`
+  // [优化10] 只展示今天的日志（原实现把历史所有日志都显示在“今日记录”下，属逻辑缺陷）；
+  // 同时对文本做 HTML 转义，杜绝 innerHTML 注入风险
+  const today = todayKey();
+  const todays = logs.filter(l => (l.date || '') === today);
+  if(!todays.length){ el.innerHTML = '<div class="log-empty">暂无记录，开始一轮专注吧</div>'; return; }
+  el.innerHTML = todays.map(l =>
+    `<div class="log-item log-${escHtml(l.type)}"><span class="log-dot"></span><span class="log-time">${escHtml(l.time)}</span><span>${escHtml(l.text)}</span></div>`
   ).join('');
 }
-
 /* ================= 计时状态机（基于时间戳，防后台漂移） ================= */
 // idle -> focus <-> mini -> focusDone -> rest -> restDone -> idle
 let mode = 'idle';
@@ -723,11 +736,9 @@ let sessionChimes = 0;
 let sumMs = 0, sumChimes = 0;                          // 本轮小结快照（专注完成时生成）
 let focusAccMs = 0, lastTick = Date.now();            // 专注分钟累计
 let roundBaseMins = 0;                                // 本轮开始时 stats.minutes 基线（用于算本轮已专注）
-
 const MINI_MS = 10000, NO_CHIME_TAIL = 5*60000;
 const ABANDON_CONFIRM_MS = 30000,   // 超过30秒放弃需弹确认
       RECORD_MIN_MS = 5*60000;      // 满5分钟才据实计入统计
-
 // 本轮到目前为止已实际专注的毫秒数（= 已 flush 进 stats 的分钟 + focusAccMs 零头）
 function elapsedFocusMs(){
   const now = Date.now();
@@ -735,7 +746,6 @@ function elapsedFocusMs(){
   if(!paused && (mode==='focus'||mode==='mini')) acc += now - lastTick;
   return acc;
 }
-
 function scheduleChime(now, remainingMs){
   const lo = cfg.minInt*60, hi = cfg.maxInt*60;
   const randSec = lo + Math.floor(Math.random()*(hi-lo+1)); // 秒级随机
@@ -745,7 +755,6 @@ function scheduleChime(now, remainingMs){
 function flushFocusMinutes(){
   while(focusAccMs >= 60000){ focusAccMs -= 60000; stats.minutes++; saveStats(); }
 }
-
 function startFocus(){
   readSettings();
   ac(); // 借用户手势激活 AudioContext
@@ -783,7 +792,7 @@ function focusComplete(){
   render();
 }
 function celebrate(){ // 完成瞬间圆环弹跳一下（重播需先移除再触发 reflow）
-  const w = $('ringWrap');
+  const w = dom.ringWrap; // [优化5] 使用缓存元素
   w.classList.remove('celebrate'); void w.offsetWidth; w.classList.add('celebrate');
 }
 function startRest(){
@@ -806,7 +815,6 @@ function toIdle(msg){
   if(msg) addLog('info', msg);
   render();
 }
-
 /* ================= 放弃本轮（结束按钮 / −减到0 共用） ================= */
 // 结算本轮放弃：满5分钟则据实补齐分钟（永不计轮次），不足则全部舍弃
 function settleAbandon(){
@@ -828,9 +836,10 @@ function settleAbandon(){
 // 请求放弃：>30秒先弹确认框，否则直接放弃
 function requestAbandon(){
   if(mode!=='focus' && mode!=='mini') return;
-  if(elapsedFocusMs() > ABANDON_CONFIRM_MS){
-    const mins = Math.floor(elapsedFocusMs()/60000);
-    $('abandonDesc').textContent = elapsedFocusMs() >= RECORD_MIN_MS
+  const elapsed = elapsedFocusMs(); // [优化11] 只计算一次，原先在函数内重复调用 3 次
+  if(elapsed > ABANDON_CONFIRM_MS){
+    const mins = Math.floor(elapsed/60000);
+    $('abandonDesc').textContent = elapsed >= RECORD_MIN_MS
       ? `本次专注已 ${mins} 分钟，将被记录。`
       : '本次专注不足5分钟，记录将不会被保存。';
     $('abandonMask').classList.add('show');
@@ -890,7 +899,6 @@ function adjust(deltaMin){ // 运行中 ±5 分钟
   addLog('info', `时间${deltaMin>0?'增加':'减少'} 5 分钟`);
   render();
 }
-
 /* ================= 主循环 ================= */
 function tick(){
   const now = Date.now();
@@ -921,19 +929,15 @@ function recalibrate(){
 }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) recalibrate(); });
 window.addEventListener('focus', recalibrate);
-
 /* ================= 渲染 ================= */
 const CIRC = 2*Math.PI*132;
-$('ringFg').style.strokeDasharray = CIRC;
+dom.ringFg.style.strokeDasharray = CIRC; // [优化5] 使用缓存元素
 function fmt(ms){ const s = Math.max(0, Math.ceil(ms/1000)); return pad(Math.floor(s/60))+':'+pad(s%60); }
 function setInputsEnabled(en){ ['cfgFocus','cfgMinInt','cfgMaxInt','cfgRest'].forEach(id=>$(id).disabled=!en); }
-
 function render(){
   const now = Date.now();
   let displayMs, sub='', phase='', ringClass='', progress=0, title='随机提示音专注计时器';
-
   const leftMsNow = paused ? leftMs : endAt - now;
-
   switch(mode){
     case 'idle':
       displayMs = cfg.focus*60000; phase='准备开始'; sub='点击开始，进入专注'; progress=0;
@@ -967,33 +971,29 @@ function render(){
       title='✅ 休息结束';
       break;
   }
-
   // 仅倒计时进行中（focus/rest，含暂停）悬停才显示 ± 按钮与时刻范围
   const adjusting = ['focus','rest'].includes(mode);
-  $('ringWrap').classList.toggle('adjusting', adjusting);
+  dom.ringWrap.classList.toggle('adjusting', adjusting); // [优化5] 以下均使用缓存元素
   if(adjusting){
     const d1 = new Date(startAt), d2 = new Date(paused ? now + leftMs : endAt);
-    $('timeRange').textContent = pad(d1.getHours())+':'+pad(d1.getMinutes()) + ' - ' + pad(d2.getHours())+':'+pad(d2.getMinutes());
+    dom.timeRange.textContent = pad(d1.getHours())+':'+pad(d1.getMinutes()) + ' - ' + pad(d2.getHours())+':'+pad(d2.getMinutes());
   } else {
-    $('timeRange').textContent = '';
+    dom.timeRange.textContent = '';
   }
-
-  $('timeText').textContent = fmt(displayMs);
-  $('timeSub').textContent = sub;
-  $('phaseText').textContent = phase + (paused ? '（已暂停）' : '');
-  $('phaseLabel').className = 'phase-label ' + (ringClass==='rest' ? 'phase-rest' : ringClass==='focus' ? 'phase-focus' : '');
-  const ring = $('ringFg');
+  dom.timeText.textContent = fmt(displayMs);
+  dom.timeSub.textContent = sub;
+  dom.phaseText.textContent = phase + (paused ? '（已暂停）' : '');
+  dom.phaseLabel.className = 'phase-label ' + (ringClass==='rest' ? 'phase-rest' : ringClass==='focus' ? 'phase-focus' : '');
+  const ring = dom.ringFg;
   ring.setAttribute('class', 'ring-fg ' + ringClass); // SVG 元素的 className 只读，须用 setAttribute
   ring.style.strokeDashoffset = CIRC * (1 - Math.min(1, Math.max(0, progress)));
-
   // 闭眼休息遮罩
   const showMini = mode==='mini';
-  $('miniOverlay').classList.toggle('show', showMini);
+  dom.miniOverlay.classList.toggle('show', showMini);
   if(showMini){
     const ms = paused ? miniLeft : miniEndAt - now;
-    $('miniCount').textContent = Math.max(0, Math.ceil(ms/1000));
+    dom.miniCount.textContent = Math.max(0, Math.ceil(ms/1000));
   }
-
   // 按钮可见性
   const vis = {
     startBtn:   mode==='idle',
@@ -1002,19 +1002,18 @@ function render(){
     restBtn:    mode==='focusDone',
     skipRestBtn:mode==='focusDone',
     doneBtn:    mode==='restDone' || mode==='rest',
-  }; // ± 按钮由 adjusting 悬停样式控制显隐，不做 display 切换
-  for(const id in vis) $(id).classList.toggle('hidden', !vis[id]);
-  $('pauseBtn').textContent = paused ? '继续' : '暂停';
-  $('doneBtn').textContent = mode==='rest' ? '提前结束休息' : '完成，回到准备';
-
+  }; // ± 按钮由 adjusting 悬停样式控制，不做 display 切换
+  for(const id in vis) dom[id].classList.toggle('hidden', !vis[id]);
+  dom.pauseBtn.textContent = paused ? '继续' : '暂停';
+  dom.doneBtn.textContent = mode==='rest' ? '提前结束休息' : '完成，回到准备';
   // 统计
-  $('statMinutes').textContent = stats.minutes;
-  $('statRounds').textContent = stats.rounds;
-  $('statChimes').textContent = sessionChimes;
-
-  document.title = (mode==='idle' ? '' : title + ' · ') + '随机提示音专注计时器';
+  dom.statMinutes.textContent = stats.minutes;
+  dom.statRounds.textContent = stats.rounds;
+  dom.statChimes.textContent = sessionChimes;
+  // [优化12] 仅在标题变化时写入 document.title，避免每 250ms 触发一次无谓的标题解析
+  const fullTitle = (mode==='idle' ? '' : title + ' · ') + '随机提示音专注计时器';
+  if(document.title !== fullTitle) document.title = fullTitle;
 }
-
 /* ================= 事件绑定 ================= */
 $('startBtn').addEventListener('click', startFocus);
 $('pauseBtn').addEventListener('click', togglePause);
@@ -1024,10 +1023,8 @@ $('skipRestBtn').addEventListener('click', ()=>toIdle('跳过大休息'));
 $('doneBtn').addEventListener('click', ()=>{ if(mode==='rest') addLog('rest','提前结束大休息'); toIdle(); });
 $('minusBtn').addEventListener('click', ()=>adjust(-5));
 $('plusBtn').addEventListener('click', ()=>adjust(5));
-
 // 点击后移除按钮焦点，避免空格键误触发按钮
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
-
 document.addEventListener('keydown', e=>{
   if(e.code==='Escape'){ if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
   if(e.code!=='Space' || e.repeat) return;
@@ -1037,10 +1034,8 @@ document.addEventListener('keydown', e=>{
   if(['focus','mini','rest'].includes(mode)) togglePause();
   else if(mode==='idle') startFocus();
 });
-
 renderLogs();
 render();
-
 // 注册 Service Worker（PWA 离线缓存）
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
