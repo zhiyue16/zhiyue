@@ -1,4 +1,4 @@
-const CACHE_NAME = 'focus-timer-v2';
+const CACHE_NAME = 'focus-timer-v6';
 const urlsToCache = [
   './index.html',
   './manifest.json',

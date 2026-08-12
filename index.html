@@ -49,6 +49,11 @@
     overflow-x:hidden;
     transition:background .4s,color .4s;
   }
+  /* 主题切换时，主内容区文字/圆环/按钮颜色平滑过渡（与背景晕染同节奏） */
+  .phase-label,.time-text,.time-sub,.time-range,.hint,.ring-fg,.ring-bg,.stat .num,.stat .lbl,
+  .brand,.btn,.tb-btn,.adjust-btn,.panel,.seg-btn,.field label,.vol-val,.about-name,.about-desc,.about-meta{
+    transition:color .45s ease, stroke .45s ease, background-color .45s ease, border-color .45s ease;
+  }
   /* 氛围背景光斑 */
   .blob{ position:fixed; border-radius:50%; filter:blur(110px); pointer-events:none; z-index:0; }
   .blob1{ width:640px;height:640px; background:radial-gradient(circle,#a8cdfc,#c5bbf7); top:-220px; left:-160px; opacity:.55; }
@@ -80,6 +85,9 @@
   .tb-btn:hover{ color:var(--text); background:var(--btn-sec); }
   .tb-btn:active{ transform:scale(.92); }
   .tb-btn.active{ color:var(--accent); background:rgba(0,122,255,.14); border-color:transparent; }
+  /* 图标翻转动画：仅 transform+opacity（合成层属性），不触发重排，零卡顿 */
+  .tb-btn .tb-ic{ display:inline-block; transition:transform .38s cubic-bezier(.2,.8,.3,1.1), opacity .18s; }
+  .tb-btn.spin .tb-ic{ transform:rotate(135deg); }
 
   /* ---------- 主区域（无框） ---------- */
   main{
@@ -119,6 +127,49 @@
   .ring-wrap.adjusting:hover .adjust-btn,
   .ring-wrap.adjusting:hover .time-range{ opacity:1; }
   .ring-wrap.adjusting:hover .adjust-btn{ pointer-events:auto; }
+  @keyframes celebratePop{ 0%{ transform:scale(1); } 35%{ transform:scale(1.045); } 100%{ transform:scale(1); } }
+  .ring-wrap.celebrate{ animation:celebratePop .55s cubic-bezier(.2,.8,.3,1.15); }
+  /* 尊重系统减少动效偏好：关闭所有装饰性动画 */
+  @media (prefers-reduced-motion:reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+
+  /* 主题切换：整页背景晕染扩散 */
+  .theme-ripple{
+    position:fixed; z-index:100; border-radius:50%; pointer-events:none;
+    transform:translate(-50%,-50%) scale(0);
+    transition:transform .62s cubic-bezier(.4,.0,.2,1);
+  }
+  .theme-ripple.go{ transform:translate(-50%,-50%) scale(1); }
+  .theme-ripple.to-dark{ background:#0a0a0d; }  /* 亮→暗：黑色扩散 */
+  .theme-ripple.to-light{ background:#f4f4f7; } /* 暗→亮：浅色扩散 */
+
+  /* 放弃确认弹窗 */
+  .abandon-mask{
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.32); opacity:0; pointer-events:none; transition:opacity .22s;
+  }
+  .abandon-mask.show{ opacity:1; pointer-events:auto; }
+  .abandon-box{
+    width:300px; padding:22px 22px 16px; border-radius:18px; text-align:center;
+    background:var(--pill); border:1px solid var(--pill-border);
+    backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
+    box-shadow:var(--shadow-pop);
+    transform:scale(.94) translateY(6px); transition:transform .22s cubic-bezier(.2,.8,.3,1.1);
+  }
+  .abandon-mask.show .abandon-box{ transform:none; }
+  .abandon-title{ font-size:16px; font-weight:700; letter-spacing:.3px; }
+  .abandon-desc{ font-size:13px; color:var(--sub); margin-top:9px; line-height:1.5; }
+  .abandon-actions{ display:flex; gap:10px; margin-top:18px; }
+  .abandon-btn{
+    flex:1; border:none; border-radius:11px; padding:9px 0; font-size:14px; font-weight:600;
+    cursor:pointer; font-family:inherit; background:var(--input-bg); color:var(--text);
+    transition:filter .15s, transform .12s;
+  }
+  .abandon-btn:hover{ filter:brightness(1.06); }
+  .abandon-btn:active{ transform:scale(.96); }
+  .abandon-btn.danger{ color:#ff453a; background:rgba(255,69,58,.12); }
+  html[data-theme="dark"] .abandon-btn.danger{ color:#ff6961; background:rgba(255,105,97,.16); }
   .time-sub{ font-size:13px; color:var(--sub); min-height:17px; }
 
   /* 闭眼休息遮罩 */
@@ -276,8 +327,8 @@
   <header class="topbar">
     <div class="brand"><span class="dot"></span>随机提示音专注计时器</div>
     <div class="top-actions">
-      <button class="tb-btn" id="panelBtn" title="设置与记录">⚙︎</button>
-      <button class="tb-btn" id="themeBtn" title="切换浅色 / 深色">🌙</button>
+      <button class="tb-btn" id="panelBtn" title="设置与记录"><span class="tb-ic">⚙︎</span></button>
+      <button class="tb-btn" id="themeBtn" title="切换浅色 / 深色"><span class="tb-ic" id="themeIc">🌙</span></button>
     </div>
   </header>
 
@@ -321,6 +372,18 @@
     <div class="stat c-blue"><div class="num" id="statRounds">0</div><div class="lbl">完成轮次</div></div>
     <div class="stat c-orange"><div class="num" id="statChimes">0</div><div class="lbl">本次提示音</div></div>
   </footer>
+
+  <!-- 放弃确认弹窗 -->
+  <div class="abandon-mask" id="abandonMask">
+    <div class="abandon-box">
+      <div class="abandon-title">提前放弃专注？</div>
+      <div class="abandon-desc" id="abandonDesc"></div>
+      <div class="abandon-actions">
+        <button class="abandon-btn danger" id="abandonOk">放弃</button>
+        <button class="abandon-btn" id="abandonCancel">取消</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 二级面板：设置 / 记录 -->
   <div class="scrim" id="scrim"></div>
@@ -380,7 +443,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.1.0</span>
+            <span>版本 v1.4.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-12</span>
           </div>
@@ -405,10 +468,12 @@ const LS = { get(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)); return 
 const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100}, LS.get('rft_cfg',{}));
 function readSettings(){
   let warn = '';
-  let focus = clampNum(parseInt($('cfgFocus').value)||90, 5, 180);
-  let minI  = clampNum(parseInt($('cfgMinInt').value)||3, 1, 30);
-  let maxI  = clampNum(parseInt($('cfgMaxInt').value)||5, 1, 30);
-  let rest  = clampNum(parseInt($('cfgRest').value)||20, 1, 120);
+  // num(v, min, max, dflt)：解析失败(空/非数字)用默认值，否则按边界钳制（0 会被钳到下限而非误判为空）
+  const num = (v,min,max,dflt)=>{ const n = parseInt(v,10); return Number.isNaN(n) ? dflt : clampNum(n,min,max); };
+  let focus = num($('cfgFocus').value, 5, 180, 90);
+  let minI  = num($('cfgMinInt').value, 1, 30, 3);
+  let maxI  = num($('cfgMaxInt').value, 1, 30, 5);
+  let rest  = num($('cfgRest').value, 1, 120, 20);
   if (minI > maxI){ maxI = minI; warn = '提示音间隔下限不能大于上限，已自动调整'; }
   $('cfgFocus').value = focus; $('cfgMinInt').value = minI;
   $('cfgMaxInt').value = maxI;  $('cfgRest').value  = rest;
@@ -424,18 +489,40 @@ function readSettings(){
 /* ================= 主题 ================= */
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', cfg.theme);
-  $('themeBtn').textContent = cfg.theme==='dark' ? '☀︎' : '🌙';
+  $('themeIc').textContent = cfg.theme==='dark' ? '☀︎' : '🌙';
 }
-$('themeBtn').addEventListener('click', ()=>{
-  cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
-  LS.set('rft_cfg', cfg); applyTheme();
+$('themeBtn').addEventListener('click', e=>{
+  const ic = $('themeIc');
+  // 图标：先半转淡出 → 换图标 → 转正淡入
+  ic.style.transform = 'rotate(-90deg) scale(.6)'; ic.style.opacity = '0';
+
+  // 背景晕染：从点击处扩散一个整页圆形遮罩，新主题色随之铺开
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!reduce){
+    const x = e.clientX || innerWidth-70, y = e.clientY || 40;
+    const r = Math.hypot(Math.max(x, innerWidth-x), Math.max(y, innerHeight-y)); // 覆盖最远角
+    const ripple = document.createElement('div');
+    ripple.className = 'theme-ripple ' + (cfg.theme==='dark' ? 'to-light' : 'to-dark');
+    ripple.style.cssText = `left:${x}px; top:${y}px; width:${r*2}px; height:${r*2}px;`;
+    document.body.appendChild(ripple);
+    // 强制 reflow 后展开
+    requestAnimationFrame(()=>requestAnimationFrame(()=>ripple.classList.add('go')));
+    setTimeout(()=>ripple.remove(), 750);
+  }
+
+  setTimeout(()=>{
+    cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
+    LS.set('rft_cfg', cfg); applyTheme();
+    ic.style.transform = ''; ic.style.opacity = '';
+  }, reduce ? 0 : 480); // 圆即将铺满时切换底层，形成无缝晕染
 });
 applyTheme();
 
 /* ================= 二级面板（设置 / 记录） ================= */
-function openPanel(){ $('panel').classList.add('show'); $('scrim').classList.add('show'); $('panelBtn').classList.add('active'); }
-function closePanel(){ $('panel').classList.remove('show'); $('scrim').classList.remove('show'); $('panelBtn').classList.remove('active'); }
+function openPanel(){ $('panel').classList.add('show'); $('scrim').classList.add('show'); $('panelBtn').classList.add('active','spin'); }
+function closePanel(){ $('panel').classList.remove('show'); $('scrim').classList.remove('show'); $('panelBtn').classList.remove('active','spin'); }
 $('panelBtn').addEventListener('click', e=>{ e.stopPropagation();
+  $('panelBtn').classList.toggle('spin', !$('panel').classList.contains('show')); // 齿轮随开合旋转
   $('panel').classList.contains('show') ? closePanel() : openPanel(); });
 $('scrim').addEventListener('click', closePanel);
 document.querySelectorAll('.seg-btn').forEach(b=>{
@@ -633,9 +720,21 @@ let endAt = 0, leftMs = 0, totalMs = 0, startAt = 0; // 当前阶段（focus / r
 let miniEndAt = 0, miniLeft = 0;                      // 10 秒闭眼休息
 let chimeAt = null, chimeLeft = null;                 // 下一次随机提示音
 let sessionChimes = 0;
+let sumMs = 0, sumChimes = 0;                          // 本轮小结快照（专注完成时生成）
 let focusAccMs = 0, lastTick = Date.now();            // 专注分钟累计
+let roundBaseMins = 0;                                // 本轮开始时 stats.minutes 基线（用于算本轮已专注）
 
 const MINI_MS = 10000, NO_CHIME_TAIL = 5*60000;
+const ABANDON_CONFIRM_MS = 30000,   // 超过30秒放弃需弹确认
+      RECORD_MIN_MS = 5*60000;      // 满5分钟才据实计入统计
+
+// 本轮到目前为止已实际专注的毫秒数（= 已 flush 进 stats 的分钟 + focusAccMs 零头）
+function elapsedFocusMs(){
+  const now = Date.now();
+  let acc = (stats.minutes - roundBaseMins)*60000 + focusAccMs;
+  if(!paused && (mode==='focus'||mode==='mini')) acc += now - lastTick;
+  return acc;
+}
 
 function scheduleChime(now, remainingMs){
   const lo = cfg.minInt*60, hi = cfg.maxInt*60;
@@ -653,7 +752,7 @@ function startFocus(){
   const now = Date.now();
   mode='focus'; paused=false;
   totalMs = cfg.focus*60000; endAt = now + totalMs; startAt = now;
-  sessionChimes = 0; focusAccMs = 0;
+  sessionChimes = 0; focusAccMs = 0; roundBaseMins = stats.minutes;
   scheduleChime(now, totalMs);
   setInputsEnabled(false);
   addLog('focus', `开始专注 ${cfg.focus} 分钟`);
@@ -677,9 +776,15 @@ function focusComplete(){
   flushFocusMinutes();
   mode='focusDone'; paused=false; chimeAt=null;
   stats.rounds++; saveStats();
+  sumMs = totalMs; sumChimes = sessionChimes; // 生成本轮小结快照
   playFinish(); // 番茄钟式三声升调结束铃
-  addLog('focus', `专注完成！本轮共 ${sessionChimes} 次提示音`);
+  addLog('focus', `专注完成 ${fmt(sumMs)}，提示音 ${sumChimes} 次，闭眼休息 ${sumChimes*10} 秒`);
+  celebrate();
   render();
+}
+function celebrate(){ // 完成瞬间圆环弹跳一下（重播需先移除再触发 reflow）
+  const w = $('ringWrap');
+  w.classList.remove('celebrate'); void w.offsetWidth; w.classList.add('celebrate');
 }
 function startRest(){
   const now = Date.now();
@@ -701,6 +806,42 @@ function toIdle(msg){
   if(msg) addLog('info', msg);
   render();
 }
+
+/* ================= 放弃本轮（结束按钮 / −减到0 共用） ================= */
+// 结算本轮放弃：满5分钟则据实补齐分钟（永不计轮次），不足则全部舍弃
+function settleAbandon(){
+  const elapsed = elapsedFocusMs();
+  if(elapsed >= RECORD_MIN_MS){
+    const totalMins = Math.floor(elapsed/60000);          // 本轮应记总分钟
+    const flushed = stats.minutes - roundBaseMins;        // 已实时 flush 进 stats 的分钟
+    const add = Math.max(0, totalMins - flushed);         // 只补零头，避免重复计
+    stats.minutes += add; saveStats();
+    addLog('info', `放弃本轮，已专注 ${totalMins} 分钟，已计入统计`);
+  }else{
+    // 不足5分钟：把已 flush 的零头分钟回退（本轮一律不计）
+    const flushed = stats.minutes - roundBaseMins;
+    if(flushed > 0){ stats.minutes -= flushed; saveStats(); }
+    addLog('info', '放弃本轮，不足 5 分钟未计入统计');
+  }
+  focusAccMs = 0; // 已手动结算，阻止 toIdle 的 flushFocusMinutes 重复计
+}
+// 请求放弃：>30秒先弹确认框，否则直接放弃
+function requestAbandon(){
+  if(mode!=='focus' && mode!=='mini') return;
+  if(elapsedFocusMs() > ABANDON_CONFIRM_MS){
+    const mins = Math.floor(elapsedFocusMs()/60000);
+    $('abandonDesc').textContent = elapsedFocusMs() >= RECORD_MIN_MS
+      ? `本次专注已 ${mins} 分钟，将被记录。`
+      : '本次专注不足5分钟，记录将不会被保存。';
+    $('abandonMask').classList.add('show');
+  }else{
+    settleAbandon(); toIdle();
+  }
+}
+function closeAbandon(){ $('abandonMask').classList.remove('show'); }
+$('abandonOk').addEventListener('click', ()=>{ closeAbandon(); settleAbandon(); toIdle(); });
+$('abandonCancel').addEventListener('click', closeAbandon);
+$('abandonMask').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeAbandon(); });
 function togglePause(){
   if(!['focus','mini','rest'].includes(mode)) return;
   const now = Date.now();
@@ -730,10 +871,13 @@ function adjust(deltaMin){ // 运行中 ±5 分钟
   totalMs = Math.max(60000, totalMs + d);
   const left = newLeft;
   if(left <= 0){
-    // 减完视为放弃本轮：专注时长清零，不计完成、不响铃、直接回初始页
-    stats.minutes = Math.max(0, stats.minutes - Math.floor(totalMs/60000)); saveStats();
-    focusAccMs = 0;
-    toIdle(mode==='focus' ? '时间已减完，本轮放弃，不计入统计' : '休息时间已减完');
+    // 减完视为放弃本轮：不计轮次、不响铃、直接回初始页。
+    // 走统一放弃流程（按已专注时长决定弹窗与统计），绝不倒扣 stats.minutes。
+    if(mode==='focus'){
+      requestAbandon();
+    }else{ // rest 减到 0：直接结束休息，无需确认/统计
+      toIdle('休息时间已减完');
+    }
     return;
   }
   if(mode==='focus'){
@@ -768,8 +912,15 @@ function tick(){
 }
 setInterval(tick, 250);
 // 标签页从后台切回时立即按真实时间校准（后台期间 setInterval 会被浏览器节流，时间戳计时本身不丢）
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ lastTick = Date.now(); tick(); } });
-window.addEventListener('focus', ()=>{ lastTick = Date.now(); tick(); });
+// 校准前先把"上次 tick 到此刻"这段被节流跳过的时间补进专注累计，避免统计分钟漏计
+function recalibrate(){
+  const now = Date.now();
+  if(!paused && (mode==='focus'||mode==='mini')) focusAccMs += now - lastTick;
+  lastTick = now;
+  tick();
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) recalibrate(); });
+window.addEventListener('focus', recalibrate);
 
 /* ================= 渲染 ================= */
 const CIRC = 2*Math.PI*132;
@@ -800,8 +951,8 @@ function render(){
       title = '闭眼休息 10 秒';
       break;
     case 'focusDone':
-      displayMs = 0; phase='专注完成'; ringClass='focus'; progress=1;
-      sub='点击「开始休息」进入大休息';
+      displayMs = sumMs; phase='专注完成'; ringClass='focus'; progress=1;
+      sub = sumChimes>0 ? `提示音 ${sumChimes} 次 · 闭眼休息 ${sumChimes*10} 秒` : '全程无提示音打扰';
       title='🎉 专注完成';
       break;
     case 'rest':
@@ -812,7 +963,7 @@ function render(){
       break;
     case 'restDone':
       displayMs = 0; phase='休息结束'; ringClass='rest'; progress=1;
-      sub='本轮完成，不会自动开始下一轮';
+      sub = sumMs>0 ? `本轮专注 ${fmt(sumMs)}${sumChimes>0 ? ` · 提示音 ${sumChimes} 次` : ''} · 不会自动开始下一轮` : '本轮完成，不会自动开始下一轮';
       title='✅ 休息结束';
       break;
   }
@@ -867,7 +1018,7 @@ function render(){
 /* ================= 事件绑定 ================= */
 $('startBtn').addEventListener('click', startFocus);
 $('pauseBtn').addEventListener('click', togglePause);
-$('stopBtn').addEventListener('click', ()=>toIdle('提前结束本轮专注'));
+$('stopBtn').addEventListener('click', requestAbandon);
 $('restBtn').addEventListener('click', startRest);
 $('skipRestBtn').addEventListener('click', ()=>toIdle('跳过大休息'));
 $('doneBtn').addEventListener('click', ()=>{ if(mode==='rest') addLog('rest','提前结束大休息'); toIdle(); });
@@ -878,7 +1029,7 @@ $('plusBtn').addEventListener('click', ()=>adjust(5));
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
 
 document.addEventListener('keydown', e=>{
-  if(e.code==='Escape'){ closePanel(); return; }
+  if(e.code==='Escape'){ if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
   if(e.code!=='Space' || e.repeat) return;
   const tag = (document.activeElement && document.activeElement.tagName) || '';
   if(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
