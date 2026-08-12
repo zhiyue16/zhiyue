@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#007aff">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>随机提示音专注计时器</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#f4f4f7;
+    --text:#1d1d1f;
+    --sub:#86868b;
+    --accent:#007aff;
+    --green:#28c840;
+    --red:#ff453a;
+    --pill:rgba(255,255,255,.62);
+    --pill-border:rgba(255,255,255,.8);
+    --hairline:rgba(0,0,0,.06);
+    --input-bg:rgba(118,118,128,.1);
+    --btn-sec:rgba(118,118,128,.12);
+    --shadow-pill:0 8px 30px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.04);
+    --shadow-pop:0 24px 70px rgba(0,0,0,.18), 0 4px 12px rgba(0,0,0,.07);
+  }
+  html[data-theme="dark"]{
+    --bg:#0a0a0d;
+    --text:#f5f5f7;
+    --sub:#98989f;
+    --accent:#0a84ff;
+    --green:#32d74b;
+    --red:#ff6961;
+    --pill:rgba(32,32,36,.6);
+    --pill-border:rgba(255,255,255,.09);
+    --hairline:rgba(255,255,255,.09);
+    --input-bg:rgba(118,118,128,.18);
+    --btn-sec:rgba(118,118,128,.22);
+    --shadow-pill:0 8px 30px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+    --shadow-pop:0 24px 70px rgba(0,0,0,.6), 0 4px 12px rgba(0,0,0,.4);
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    overflow-x:hidden;
+    transition:background .4s,color .4s;
+  }
+  /* 氛围背景光斑 */
+  .blob{ position:fixed; border-radius:50%; filter:blur(110px); pointer-events:none; z-index:0; }
+  .blob1{ width:640px;height:640px; background:radial-gradient(circle,#a8cdfc,#c5bbf7); top:-220px; left:-160px; opacity:.55; }
+  .blob2{ width:560px;height:560px; background:radial-gradient(circle,#ffc2cf,#f5c6f7); bottom:-220px; right:-140px; opacity:.5; }
+  .blob3{ width:420px;height:420px; background:radial-gradient(circle,#a9ecd0,#a8e6f5); top:45%; left:60%; opacity:.4; }
+  html[data-theme="dark"] .blob{ opacity:.17; }
+
+  /* ---------- 顶部胶囊导航 ---------- */
+  .topbar{
+    position:relative; z-index:2;
+    width:min(960px, calc(100vw - 48px));
+    margin:22px auto 0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 12px 11px 22px;
+    background:var(--pill); border:1px solid var(--pill-border); border-radius:100px;
+    backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
+    box-shadow:var(--shadow-pill);
+    transition:background .4s,border .4s;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:15px; letter-spacing:.3px; user-select:none; }
+  .brand .dot{ width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--green),#5eead4); box-shadow:0 0 10px rgba(40,200,64,.55); }
+  .top-actions{ display:flex; gap:8px; }
+  .tb-btn{
+    width:36px; height:36px; border-radius:50%; border:1px solid var(--hairline);
+    background:var(--input-bg); color:var(--sub); font-size:16px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-family:inherit;
+    transition:color .15s, background .15s, transform .12s;
+  }
+  .tb-btn:hover{ color:var(--text); background:var(--btn-sec); }
+  .tb-btn:active{ transform:scale(.92); }
+  .tb-btn.active{ color:var(--accent); background:rgba(0,122,255,.14); border-color:transparent; }
+
+  /* ---------- 主区域（无框） ---------- */
+  main{
+    position:relative; z-index:1; flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:20px 0 8px;
+  }
+  .phase-label{
+    font-size:14px; font-weight:600; letter-spacing:2.5px; color:var(--sub);
+    display:flex; align-items:center; gap:8px; user-select:none;
+  }
+  .phase-label .phase-dot{ width:8px; height:8px; border-radius:50%; background:var(--sub); transition:background .3s, box-shadow .3s; }
+  .phase-focus .phase-dot{ background:var(--green); box-shadow:0 0 10px var(--green); }
+  .phase-rest .phase-dot{ background:var(--red); box-shadow:0 0 10px var(--red); }
+
+  .ring-wrap{ position:relative; width:330px; height:330px; margin:14px 0 4px; }
+  .ring-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); }
+  .ring-bg{ fill:none; stroke:var(--hairline); stroke-width:10; }
+  .ring-fg{ fill:none; stroke:var(--sub); stroke-width:10; stroke-linecap:round; transition:stroke-dashoffset .35s linear, stroke .4s; }
+  .ring-fg.focus{ stroke:var(--green); filter:drop-shadow(0 0 10px rgba(40,200,64,.35)); }
+  .ring-fg.rest{ stroke:var(--red); filter:drop-shadow(0 0 10px rgba(255,69,58,.35)); }
+
+  .timer-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding-top:44px; } /* 补偿下方副文本行，使时间居中于圆心 */
+  .time-row{ display:flex; align-items:center; gap:10px; }
+  .time-text{
+    font-size:68px; font-weight:600; letter-spacing:1px; line-height:1;
+    font-variant-numeric:tabular-nums; font-feature-settings:"tnum";
+  }
+  .adjust-btn{
+    width:36px; height:36px; border-radius:50%; border:none; background:transparent;
+    color:var(--sub); font-size:26px; font-weight:300; cursor:pointer; line-height:1;
+    opacity:0; pointer-events:none; transition:opacity .18s, color .15s, background .15s;
+    font-family:inherit; flex-shrink:0;
+  }
+  .adjust-btn:hover{ color:var(--text); background:var(--input-bg); }
+  .time-range{ font-size:13.5px; color:var(--sub); font-variant-numeric:tabular-nums; min-height:17px; opacity:0; transition:opacity .18s; letter-spacing:.5px; }
+  .ring-wrap.adjusting:hover .adjust-btn,
+  .ring-wrap.adjusting:hover .time-range{ opacity:1; }
+  .ring-wrap.adjusting:hover .adjust-btn{ pointer-events:auto; }
+  .time-sub{ font-size:13px; color:var(--sub); min-height:17px; }
+
+  /* 闭眼休息遮罩 */
+  .mini-overlay{
+    position:absolute; inset:-6px; border-radius:50%; display:none;
+    align-items:center; justify-content:center; flex-direction:column; gap:7px;
+    background:var(--pill); backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
+    border:1px solid var(--pill-border); z-index:5;
+  }
+  .mini-overlay.show{ display:flex; }
+  .mini-overlay .mini-title{ font-size:15px; font-weight:600; color:var(--sub); letter-spacing:3px; }
+  .mini-overlay .mini-count{ font-size:72px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--accent); line-height:1; }
+
+  /* 控制按钮 */
+  .controls{ display:flex; gap:12px; margin:16px 0 6px; }
+  .btn{
+    border:none; border-radius:100px; padding:13px 34px; font-size:15px; font-weight:600; cursor:pointer;
+    font-family:inherit; letter-spacing:.5px;
+    transition:transform .12s, filter .15s;
+  }
+  .btn:hover{ filter:brightness(1.07); }
+  .btn:active{ transform:scale(.96); }
+  .btn-primary{ background:var(--accent); color:#fff; }
+  .btn-green{ background:var(--green); color:#fff; }
+  .btn-ghost{ background:var(--btn-sec); color:var(--text); }
+  .btn.hidden{ display:none; }
+  .hint{ font-size:12px; color:var(--sub); margin-top:4px; user-select:none; }
+  kbd{ background:var(--input-bg); border:1px solid var(--hairline); border-radius:6px; padding:1px 7px; font-family:inherit; font-size:11px; }
+
+  /* ---------- 底部统计胶囊 ---------- */
+  .stats-bar{
+    position:relative; z-index:2;
+    width:fit-content; max-width:calc(100vw - 48px);
+    margin:0 auto 26px;
+    display:flex;
+    background:var(--pill); border:1px solid var(--pill-border); border-radius:100px;
+    backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
+    box-shadow:var(--shadow-pill);
+    transition:background .4s,border .4s;
+  }
+  .stat{ padding:14px 34px; text-align:center; }
+  .stat + .stat{ border-left:1px solid var(--hairline); }
+  .stat .num{ font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:.3px; }
+  .stat .num small{ font-size:11.5px; font-weight:500; color:var(--sub); margin-left:2px; }
+  .stat .lbl{ font-size:11px; color:var(--sub); margin-top:2px; }
+  .stat.c-green .num{ color:var(--green); }
+  .stat.c-blue .num{ color:var(--accent); }
+  .stat.c-orange .num{ color:#ff9f0a; }
+
+  /* ---------- 二级面板（设置 / 记录） ---------- */
+  .scrim{
+    position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.08);
+    opacity:0; pointer-events:none; transition:opacity .22s;
+  }
+  html[data-theme="dark"] .scrim{ background:rgba(0,0,0,.35); }
+  .scrim.show{ opacity:1; pointer-events:auto; }
+  .panel{
+    position:fixed; top:86px; right:max(24px, calc((100vw - 960px)/2)); z-index:30;
+    width:350px; max-height:calc(100vh - 116px);
+    display:flex; flex-direction:column;
+    background:var(--pill); border:1px solid var(--pill-border); border-radius:22px;
+    backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
+    box-shadow:var(--shadow-pop);
+    opacity:0; transform:translateY(-8px) scale(.97); transform-origin:top right;
+    pointer-events:none; transition:opacity .22s, transform .22s;
+  }
+  .panel.show{ opacity:1; transform:none; pointer-events:auto; }
+  .seg{
+    display:flex; gap:3px; margin:14px 14px 4px; padding:3px;
+    background:var(--input-bg); border-radius:11px;
+  }
+  .seg-btn{
+    flex:1; border:none; border-radius:8px; padding:6px 0; font-size:13px; font-weight:600;
+    background:transparent; color:var(--sub); cursor:pointer; font-family:inherit;
+    transition:background .18s, color .18s, box-shadow .18s;
+  }
+  .seg-btn.active{ background:#fff; color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,.1); }
+  html[data-theme="dark"] .seg-btn.active{ background:rgba(255,255,255,.14); }
+  .panel-body{ overflow-y:auto; padding:8px 20px 16px; scrollbar-width:thin; }
+  .panel-page{ display:none; }
+  .panel-page.active{ display:block; }
+
+  .group-label{ font-size:11px; font-weight:600; letter-spacing:1px; color:var(--sub); margin:14px 2px 6px; }
+  .field{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); }
+  .field:last-of-type{ border-bottom:none; }
+  .field label{ font-size:14px; font-weight:500; flex-shrink:0; }
+  .field .unit{ font-size:12px; color:var(--sub); margin-left:4px; }
+  .num-input{
+    width:72px; padding:6px 10px; border-radius:9px; border:none;
+    background:var(--input-bg); color:var(--text); font-size:14px; font-weight:600; text-align:center;
+    font-family:inherit; font-variant-numeric:tabular-nums; outline:none; transition:box-shadow .2s;
+  }
+  .num-input:focus{ box-shadow:0 0 0 3.5px rgba(0,122,255,.3); }
+  .num-input:disabled{ opacity:.45; }
+  .range-pair{ display:flex; align-items:center; gap:6px; }
+  .range-pair .num-input{ width:56px; }
+
+  .sound-row{ display:flex; gap:8px; margin-top:2px; }
+  .sound-chip{
+    flex:1; border:1.5px solid transparent; background:var(--input-bg); border-radius:13px;
+    padding:10px 4px; text-align:center; cursor:pointer; transition:all .18s;
+    font-size:12.5px; font-weight:500; user-select:none; color:var(--text);
+  }
+  .sound-chip .s-icon{ font-size:19px; display:block; margin-bottom:3px; }
+  .sound-chip.active{ border-color:var(--accent); color:var(--accent); font-weight:700; background:rgba(0,122,255,.1); }
+  .sound-chip:active{ transform:scale(.96); }
+  .warn-text{ font-size:12px; color:#ff9f0a; margin-top:9px; min-height:15px; }
+
+  /* 关于 */
+  .about{
+    margin-top:16px; padding:14px 4px 4px;
+    border-top:1px solid var(--hairline);
+    text-align:center; user-select:none;
+  }
+  .about-name{ font-size:13px; font-weight:700; letter-spacing:.5px; }
+  .about-desc{ font-size:11.5px; color:var(--sub); margin-top:4px; }
+  .about-meta{ font-size:11px; color:var(--sub); margin-top:8px; display:flex; justify-content:center; gap:6px; flex-wrap:wrap; }
+  .about-sep{ opacity:.5; }
+
+  .log-list{ display:flex; flex-direction:column; }
+  .log-item{ display:flex; gap:9px; align-items:baseline; padding:9px 2px; border-bottom:1px solid var(--hairline); font-size:13px; }
+  .log-item:last-child{ border-bottom:none; }
+  .log-time{ font-variant-numeric:tabular-nums; color:var(--sub); font-size:12px; flex-shrink:0; }
+  .log-dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; align-self:center; }
+  .log-chime .log-dot{ background:#ff9f0a; }
+  .log-rest .log-dot{ background:var(--red); }
+  .log-focus .log-dot{ background:var(--green); }
+  .log-info .log-dot{ background:var(--accent); }
+  .log-empty{ color:var(--sub); font-size:13px; text-align:center; padding:26px 0; }
+</style>
+</head>
+<body>
+  <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
+
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span>随机提示音专注计时器</div>
+    <div class="top-actions">
+      <button class="tb-btn" id="panelBtn" title="设置与记录">⚙︎</button>
+      <button class="tb-btn" id="themeBtn" title="切换浅色 / 深色">🌙</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="phase-label" id="phaseLabel"><span class="phase-dot"></span><span id="phaseText">准备开始</span></div>
+
+    <div class="ring-wrap" id="ringWrap">
+      <svg viewBox="0 0 300 300">
+        <circle class="ring-bg" cx="150" cy="150" r="132"></circle>
+        <circle class="ring-fg" id="ringFg" cx="150" cy="150" r="132"></circle>
+      </svg>
+      <div class="timer-center">
+        <div class="time-row">
+          <button class="adjust-btn" id="minusBtn" title="减少 5 分钟">−</button>
+          <div class="time-text" id="timeText">90:00</div>
+          <button class="adjust-btn" id="plusBtn" title="增加 5 分钟">+</button>
+        </div>
+        <div class="time-range" id="timeRange"></div>
+        <div class="time-sub" id="timeSub">点击开始，进入专注</div>
+      </div>
+      <div class="mini-overlay" id="miniOverlay">
+        <div class="mini-title">闭眼休息</div>
+        <div class="mini-count" id="miniCount">10</div>
+        <div class="mini-title" style="letter-spacing:1px;font-size:12px;">秒后继续专注</div>
+      </div>
+    </div>
+
+    <div class="controls" id="controls">
+      <button class="btn btn-green" id="startBtn">开始专注</button>
+      <button class="btn btn-primary hidden" id="pauseBtn">暂停</button>
+      <button class="btn btn-ghost hidden" id="stopBtn">结束</button>
+      <button class="btn btn-green hidden" id="restBtn">开始休息</button>
+      <button class="btn btn-ghost hidden" id="skipRestBtn">跳过休息</button>
+      <button class="btn btn-primary hidden" id="doneBtn">完成，回到准备</button>
+    </div>
+    <div class="hint">提示音将随机响起，听到后闭眼休息 10 秒 · <kbd>空格</kbd> 暂停 / 继续 · 悬停计时器 ±5 分钟</div>
+  </main>
+
+  <footer class="stats-bar">
+    <div class="stat c-green"><div class="num"><span id="statMinutes">0</span><small>分钟</small></div><div class="lbl">今日专注</div></div>
+    <div class="stat c-blue"><div class="num" id="statRounds">0</div><div class="lbl">完成轮次</div></div>
+    <div class="stat c-orange"><div class="num" id="statChimes">0</div><div class="lbl">本次提示音</div></div>
+  </footer>
+
+  <!-- 二级面板：设置 / 记录 -->
+  <div class="scrim" id="scrim"></div>
+  <div class="panel" id="panel">
+    <div class="seg">
+      <button class="seg-btn active" data-page="settings">设置</button>
+      <button class="seg-btn" data-page="logs">记录</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-page active" id="pageSettings">
+        <div class="group-label">时长</div>
+        <div class="field">
+          <label>专注时长<span class="unit">5–180 分钟</span></label>
+          <span><input class="num-input" id="cfgFocus" type="number" min="5" max="180" value="90"><span class="unit">分钟</span></span>
+        </div>
+        <div class="field">
+          <label>大休息时长<span class="unit">1–120 分钟</span></label>
+          <span><input class="num-input" id="cfgRest" type="number" min="1" max="120" value="20"><span class="unit">分钟</span></span>
+        </div>
+        <div class="group-label">提示音</div>
+        <div class="field">
+          <label>随机间隔</label>
+          <span class="range-pair">
+            <input class="num-input" id="cfgMinInt" type="number" min="1" max="30" value="3">
+            <span class="unit">至</span>
+            <input class="num-input" id="cfgMaxInt" type="number" min="1" max="30" value="5">
+            <span class="unit">分钟</span>
+          </span>
+        </div>
+        <div class="field" style="flex-direction:column;align-items:stretch;gap:9px;">
+          <label>音色（点击试听）</label>
+          <div class="sound-row">
+            <div class="sound-chip active" data-sound="bell"><span class="s-icon">🔔</span>铃声</div>
+            <div class="sound-chip" data-sound="ding"><span class="s-icon">🎐</span>叮</div>
+            <div class="sound-chip" data-sound="chime"><span class="s-icon">🎶</span>报时</div>
+          </div>
+          <div class="sound-row" style="margin-top:8px;">
+            <div class="sound-chip" data-sound="wood"><span class="s-icon">🪵</span>木鱼</div>
+            <div class="sound-chip" data-sound="xylo"><span class="s-icon">🪇</span>木琴</div>
+            <div class="sound-chip" data-sound="beep"><span class="s-icon">⚡</span>电子音</div>
+          </div>
+        </div>
+        <div class="warn-text" id="warnText"></div>
+        <div class="about">
+          <div class="about-name">随机提示音专注计时器</div>
+          <div class="about-desc">随机响铃提醒闭眼休息，专注与恢复并行</div>
+          <div class="about-meta">
+            <span>作者：纸月十六</span>
+            <span class="about-sep">·</span>
+            <span>版本 v1.0.0</span>
+            <span class="about-sep">·</span>
+            <span>2026-08-12</span>
+          </div>
+        </div>
+      </div>
+      <div class="panel-page" id="pageLogs">
+        <div class="group-label">今日记录</div>
+        <div class="log-list" id="logList"><div class="log-empty">暂无记录，开始一轮专注吧</div></div>
+      </div>
+    </div>
+  </div>
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const clampNum = (v,a,b) => Math.min(b, Math.max(a, v));
+const pad = n => String(n).padStart(2,'0');
+const LS = { get(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?d:v; }catch(e){ return d; } },
+             set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
+
+/* ================= 设置（含边界校验） ================= */
+const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light'}, LS.get('rft_cfg',{}));
+function readSettings(){
+  let warn = '';
+  let focus = clampNum(parseInt($('cfgFocus').value)||90, 5, 180);
+  let minI  = clampNum(parseInt($('cfgMinInt').value)||3, 1, 30);
+  let maxI  = clampNum(parseInt($('cfgMaxInt').value)||5, 1, 30);
+  let rest  = clampNum(parseInt($('cfgRest').value)||20, 1, 120);
+  if (minI > maxI){ maxI = minI; warn = '提示音间隔下限不能大于上限，已自动调整'; }
+  $('cfgFocus').value = focus; $('cfgMinInt').value = minI;
+  $('cfgMaxInt').value = maxI;  $('cfgRest').value  = rest;
+  $('warnText').textContent = warn;
+  Object.assign(cfg, {focus, minInt:minI, maxInt:maxI, rest});
+  LS.set('rft_cfg', cfg);
+}
+['cfgFocus','cfgMinInt','cfgMaxInt','cfgRest'].forEach(id=>{
+  $(id).value = cfg[{cfgFocus:'focus',cfgMinInt:'minInt',cfgMaxInt:'maxInt',cfgRest:'rest'}[id]];
+  $(id).addEventListener('change', ()=>{ readSettings(); if(mode==='idle') render(); });
+});
+
+/* ================= 主题 ================= */
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', cfg.theme);
+  $('themeBtn').textContent = cfg.theme==='dark' ? '☀︎' : '🌙';
+}
+$('themeBtn').addEventListener('click', ()=>{
+  cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
+  LS.set('rft_cfg', cfg); applyTheme();
+});
+applyTheme();
+
+/* ================= 二级面板（设置 / 记录） ================= */
+function openPanel(){ $('panel').classList.add('show'); $('scrim').classList.add('show'); $('panelBtn').classList.add('active'); }
+function closePanel(){ $('panel').classList.remove('show'); $('scrim').classList.remove('show'); $('panelBtn').classList.remove('active'); }
+$('panelBtn').addEventListener('click', e=>{ e.stopPropagation();
+  $('panel').classList.contains('show') ? closePanel() : openPanel(); });
+$('scrim').addEventListener('click', closePanel);
+document.querySelectorAll('.seg-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel-page').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    $(b.dataset.page==='settings' ? 'pageSettings' : 'pageLogs').classList.add('active');
+  });
+});
+
+/* ================= Web Audio 合成提示音 ================= */
+let actx = null;
+function ac(){
+  if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended') actx.resume();
+  return actx;
+}
+const synth = {
+  bell(t){ // 铃声：E6 小三度泛音结构，清晰穿透（经典闹铃/计时铃）
+    const a = ac(), f = 1318.5; // E6
+    [[1,.6],[1.19,.25],[1.5,.12],[2.01,.07]].forEach(([m,g])=>{
+      const o=a.createOscillator(), gn=a.createGain();
+      o.type='sine'; o.frequency.value=f*m;
+      gn.gain.setValueAtTime(0.0001,t);
+      gn.gain.linearRampToValueAtTime(.5*g, t+.006);
+      gn.gain.exponentialRampToValueAtTime(.0001, t+2.2);
+      o.connect(gn); gn.connect(a.destination);
+      o.start(t); o.stop(t+2.3);
+    });
+  },
+  ding(t){ // 叮：A6 唱钵/风铃式纯净长音（正念/番茄钟提示音）
+    const a = ac(), f = 1760; // A6
+    [[1,.55],[2.76,.1],[5.4,.04]].forEach(([m,g])=>{
+      const o=a.createOscillator(), gn=a.createGain();
+      o.type='sine'; o.frequency.value=f*m;
+      gn.gain.setValueAtTime(0.0001,t);
+      gn.gain.linearRampToValueAtTime(.5*g, t+.004);
+      gn.gain.exponentialRampToValueAtTime(.0001, t+3.2);
+      o.connect(gn); gn.connect(a.destination);
+      o.start(t); o.stop(t+3.3);
+    });
+  },
+  chime(t){ // 报时：sol-do 上行纯五度双音（系统提醒/番茄钟结束常用）
+    const a = ac();
+    [[783.99,0],[1046.5,.2]].forEach(([f,dt])=>{ // G5 -> C6
+      const o=a.createOscillator(), g=a.createGain();
+      o.type='sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,t+dt);
+      g.gain.linearRampToValueAtTime(.55,t+dt+.01);
+      g.gain.exponentialRampToValueAtTime(.0001,t+dt+1.1);
+      o.connect(g); g.connect(a.destination); o.start(t+dt); o.stop(t+dt+1.2);
+    });
+  },
+  wood(t){ // 木鱼：E5 音头快速下坠 + 木质噪声敲击（更脆更实）
+    const a = ac();
+    const o=a.createOscillator(), g=a.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(659,t); // E5
+    o.frequency.exponentialRampToValueAtTime(440,t+.05); // 快速下坠到 A4
+    g.gain.setValueAtTime(1,t);
+    g.gain.exponentialRampToValueAtTime(.0001,t+.12);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+.14);
+    const len=a.sampleRate*.025, buf=a.createBuffer(1,len,a.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+    const n=a.createBufferSource(); n.buffer=buf;
+    const ng=a.createGain(); ng.gain.setValueAtTime(.4,t); ng.gain.exponentialRampToValueAtTime(.0001,t+.025);
+    const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2000; bp.Q.value=1.2;
+    n.connect(bp); bp.connect(ng); ng.connect(a.destination); n.start(t);
+  },
+  xylo(t){ // 木琴：C6 木质敲击 + 高泛音（厨房/运动计时器常用）
+    const a = ac(), f = 1046.5; // C6
+    [[1,.75],[4.2,.22],[10.6,.06]].forEach(([m,g])=>{
+      const o=a.createOscillator(), gn=a.createGain();
+      o.type='sine'; o.frequency.value=f*m;
+      gn.gain.setValueAtTime(0.0001,t);
+      gn.gain.linearRampToValueAtTime(.55*g, t+.003);
+      gn.gain.exponentialRampToValueAtTime(.0001, t+.45);
+      o.connect(gn); gn.connect(a.destination);
+      o.start(t); o.stop(t+.5);
+    });
+  },
+  beep(t){ // 电子音：A5 双连正弦哔哔，柔和不刺耳（微波炉/电子表提醒）
+    const a = ac();
+    [[880,0],[880,.25]].forEach(([f,dt])=>{ // A5 两声
+      const o=a.createOscillator(), g=a.createGain();
+      o.type='sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,t+dt);
+      g.gain.exponentialRampToValueAtTime(.3,t+dt+.01);
+      g.gain.setValueAtTime(.3,t+dt+.12);
+      g.gain.exponentialRampToValueAtTime(.0001,t+dt+.16);
+      o.connect(g); g.connect(a.destination); o.start(t+dt); o.stop(t+dt+.2);
+    });
+  }
+};
+const SOUND_GAP = {bell:1.6, wood:.4, beep:.55, ding:2, chime:1.4, xylo:.6};
+function playChime(times){
+  try{
+    const a = ac(), t0 = a.currentTime + .03;
+    for(let i=0;i<times;i++) synth[cfg.sound](t0 + i*SOUND_GAP[cfg.sound]);
+  }catch(e){ console.warn('音频播放失败', e); }
+}
+// 番茄钟结束专用：三声逐级升调的清脆"叮-叮-叮"（类似滴答清单番茄钟）
+function playFinish(){
+  try{
+    const a = ac(), t0 = a.currentTime + .03;
+    [1318.5, 1568, 2093].forEach((f, i)=>{ // E6 -> G6 -> C7 逐级上扬
+      const t = t0 + i * .38;
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(.5, t+.008);
+      g.gain.exponentialRampToValueAtTime(.0001, t+.55);
+      o.connect(g); g.connect(a.destination);
+      o.start(t); o.stop(t+.6);
+    });
+  }catch(e){ console.warn('音频播放失败', e); }
+}
+document.querySelectorAll('.sound-chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    document.querySelectorAll('.sound-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    cfg.sound = chip.dataset.sound;
+    LS.set('rft_cfg', cfg);
+    playChime(1); // 切换即预览
+  });
+  if(chip.dataset.sound===cfg.sound){
+    document.querySelectorAll('.sound-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+  }
+});
+
+/* ================= 统计 & 日志（localStorage） ================= */
+const todayKey = () => new Date().toLocaleDateString('sv'); // YYYY-MM-DD 本地
+let stats = LS.get('rft_stats', null);
+if(!stats || stats.date !== todayKey()) stats = {date: todayKey(), minutes:0, rounds:0};
+let logs = LS.get('rft_logs', []);
+function saveStats(){ stats.date = todayKey(); LS.set('rft_stats', stats); }
+function addLog(type, text){
+  const t = new Date();
+  logs.unshift({time: pad(t.getHours())+':'+pad(t.getMinutes())+':'+pad(t.getSeconds()), type, text});
+  if(logs.length>100) logs.length = 100;
+  LS.set('rft_logs', logs);
+  renderLogs();
+}
+function renderLogs(){
+  const el = $('logList');
+  if(!logs.length){ el.innerHTML = '<div class="log-empty">暂无记录，开始一轮专注吧</div>'; return; }
+  el.innerHTML = logs.map(l=>
+    `<div class="log-item log-${l.type}"><span class="log-dot"></span><span class="log-time">${l.time}</span><span>${l.text}</span></div>`
+  ).join('');
+}
+
+/* ================= 计时状态机（基于时间戳，防后台漂移） ================= */
+// idle -> focus <-> mini -> focusDone -> rest -> restDone -> idle
+let mode = 'idle';
+let paused = false;
+let endAt = 0, leftMs = 0, totalMs = 0, startAt = 0; // 当前阶段（focus / rest）
+let miniEndAt = 0, miniLeft = 0;                      // 10 秒闭眼休息
+let chimeAt = null, chimeLeft = null;                 // 下一次随机提示音
+let sessionChimes = 0;
+let focusAccMs = 0, lastTick = Date.now();            // 专注分钟累计
+
+const MINI_MS = 10000, NO_CHIME_TAIL = 5*60000;
+
+function scheduleChime(now, remainingMs){
+  const lo = cfg.minInt*60, hi = cfg.maxInt*60;
+  const randSec = lo + Math.floor(Math.random()*(hi-lo+1)); // 秒级随机
+  if (remainingMs - randSec*1000 >= NO_CHIME_TAIL){ chimeAt = now + randSec*1000; }
+  else chimeAt = null; // 最后 5 分钟内不再安排
+}
+function flushFocusMinutes(){
+  while(focusAccMs >= 60000){ focusAccMs -= 60000; stats.minutes++; saveStats(); }
+}
+
+function startFocus(){
+  readSettings();
+  ac(); // 借用户手势激活 AudioContext
+  const now = Date.now();
+  mode='focus'; paused=false;
+  totalMs = cfg.focus*60000; endAt = now + totalMs; startAt = now;
+  sessionChimes = 0; focusAccMs = 0;
+  scheduleChime(now, totalMs);
+  setInputsEnabled(false);
+  addLog('focus', `开始专注 ${cfg.focus} 分钟`);
+  render();
+}
+function startMini(now){
+  mode='mini'; miniEndAt = now + MINI_MS; chimeAt = null;
+  sessionChimes++;
+  playChime(1);
+  addLog('chime', `第 ${sessionChimes} 次提示音响起，闭眼休息 10 秒`);
+}
+function endMini(now){
+  const left = endAt - now; // endAt 未冻结，10 秒已计入专注时间
+  mode='focus';
+  playChime(1);
+  addLog('chime', '休息结束，继续专注');
+  if(left <= 0){ focusComplete(); return; }
+  scheduleChime(now, left);
+}
+function focusComplete(){
+  flushFocusMinutes();
+  mode='focusDone'; paused=false; chimeAt=null;
+  stats.rounds++; saveStats();
+  playFinish(); // 番茄钟式三声升调结束铃
+  addLog('focus', `专注完成！本轮共 ${sessionChimes} 次提示音`);
+  render();
+}
+function startRest(){
+  const now = Date.now();
+  mode='rest'; paused=false;
+  totalMs = cfg.rest*60000; endAt = now + totalMs; startAt = now;
+  addLog('rest', `开始大休息 ${cfg.rest} 分钟`);
+  render();
+}
+function restComplete(){
+  mode='restDone'; paused=false;
+  playFinish(); // 番茄钟式三声升调结束铃
+  addLog('rest', '大休息结束');
+  render();
+}
+function toIdle(msg){
+  flushFocusMinutes(); focusAccMs = 0;
+  mode='idle'; paused=false; chimeAt=null; chimeLeft=null;
+  setInputsEnabled(true);
+  if(msg) addLog('info', msg);
+  render();
+}
+function togglePause(){
+  if(!['focus','mini','rest'].includes(mode)) return;
+  const now = Date.now();
+  if(!paused){
+    paused = true;
+    if(mode==='focus'){ leftMs = endAt - now; chimeLeft = chimeAt ? chimeAt - now : null; }
+    if(mode==='mini'){ miniLeft = miniEndAt - now; leftMs = endAt - now; }
+    if(mode==='rest'){ leftMs = endAt - now; }
+    addLog('info', '已暂停');
+  }else{
+    paused = false;
+    if(mode==='focus'){ endAt = now + leftMs; chimeAt = chimeLeft!=null ? now + chimeLeft : null; }
+    if(mode==='mini'){ miniEndAt = now + miniLeft; endAt = now + leftMs; }
+    if(mode==='rest'){ endAt = now + leftMs; }
+    addLog('info', '继续');
+    lastTick = now;
+  }
+  render();
+}
+function adjust(deltaMin){ // 运行中 ±5 分钟
+  if(mode!=='focus' && mode!=='rest') return;
+  const d = deltaMin*60000, now = Date.now();
+  const curLeft = paused ? leftMs : endAt - now;
+  if(deltaMin > 0 && curLeft + d > 180*60000) return; // 剩余时长不得超过 180 分钟上限，超出则忽略
+  const newLeft = Math.max(0, curLeft + d);
+  if(paused) leftMs = newLeft; else endAt = now + newLeft;
+  totalMs = Math.max(60000, totalMs + d);
+  const left = newLeft;
+  if(left <= 0){
+    // 减完视为放弃本轮：专注时长清零，不计完成、不响铃、直接回初始页
+    stats.minutes = Math.max(0, stats.minutes - Math.floor(totalMs/60000)); saveStats();
+    focusAccMs = 0;
+    toIdle(mode==='focus' ? '时间已减完，本轮放弃，不计入统计' : '休息时间已减完');
+    return;
+  }
+  if(mode==='focus'){
+    const cLeft = paused ? chimeLeft : (chimeAt ? chimeAt - now : null);
+    if(cLeft!=null && left - cLeft < NO_CHIME_TAIL){ chimeAt = chimeLeft = null; } // 落入最后 5 分钟则取消
+    if(chimeAt==null && chimeLeft==null && deltaMin>0) scheduleChime(now, left); // 加时间后尝试重新安排
+    if(paused && chimeLeft==null && chimeAt!=null) chimeLeft = chimeAt - now; // 保持暂停态快照一致
+    if(!paused && chimeAt==null && chimeLeft!=null) chimeAt = now + chimeLeft;
+  }
+  addLog('info', `时间${deltaMin>0?'增加':'减少'} 5 分钟`);
+  render();
+}
+
+/* ================= 主循环 ================= */
+function tick(){
+  const now = Date.now();
+  if(!paused){
+    if(mode==='focus'){
+      const left = endAt - now;
+      focusAccMs += now - lastTick; flushFocusMinutes();
+      if(chimeAt && now >= chimeAt && left > 0) startMini(now);
+      else if(left <= 0) focusComplete();
+    }else if(mode==='mini'){
+      focusAccMs += now - lastTick; flushFocusMinutes(); // 闭眼休息计入专注时间
+      if(now >= miniEndAt) endMini(now);
+    }else if(mode==='rest'){
+      if(now >= endAt) restComplete();
+    }
+  }
+  lastTick = now;
+  render();
+}
+setInterval(tick, 250);
+// 标签页从后台切回时立即按真实时间校准（后台期间 setInterval 会被浏览器节流，时间戳计时本身不丢）
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ lastTick = Date.now(); tick(); } });
+window.addEventListener('focus', ()=>{ lastTick = Date.now(); tick(); });
+
+/* ================= 渲染 ================= */
+const CIRC = 2*Math.PI*132;
+$('ringFg').style.strokeDasharray = CIRC;
+function fmt(ms){ const s = Math.max(0, Math.ceil(ms/1000)); return pad(Math.floor(s/60))+':'+pad(s%60); }
+function setInputsEnabled(en){ ['cfgFocus','cfgMinInt','cfgMaxInt','cfgRest'].forEach(id=>$(id).disabled=!en); }
+
+function render(){
+  const now = Date.now();
+  let displayMs, sub='', phase='', ringClass='', progress=0, title='随机提示音专注计时器';
+
+  const focusLeft = paused ? leftMs : endAt - now;
+  const restLeft  = paused ? leftMs : endAt - now;
+
+  switch(mode){
+    case 'idle':
+      displayMs = cfg.focus*60000; phase='准备开始'; sub='点击开始，进入专注'; progress=0;
+      break;
+    case 'focus':
+      displayMs = focusLeft; phase='专注中'; ringClass='focus';
+      progress = totalMs ? 1 - focusLeft/totalMs : 0;
+      sub = paused ? '已暂停' : '';
+      title = `${fmt(displayMs)} 专注中`;
+      break;
+    case 'mini':
+      displayMs = focusLeft; phase='专注中 · 闭眼休息'; ringClass='focus';
+      progress = totalMs ? 1 - focusLeft/totalMs : 0;
+      sub = '';
+      title = '闭眼休息 10 秒';
+      break;
+    case 'focusDone':
+      displayMs = 0; phase='专注完成'; ringClass='focus'; progress=1;
+      sub='点击「开始休息」进入大休息';
+      title='🎉 专注完成';
+      break;
+    case 'rest':
+      displayMs = restLeft; phase='大休息中'; ringClass='rest';
+      progress = totalMs ? 1 - restLeft/totalMs : 0;
+      sub = paused ? '已暂停' : '放松一下吧';
+      title = `${fmt(displayMs)} 休息中`;
+      break;
+    case 'restDone':
+      displayMs = 0; phase='休息结束'; ringClass='rest'; progress=1;
+      sub='本轮完成，不会自动开始下一轮';
+      title='✅ 休息结束';
+      break;
+  }
+
+  // 仅倒计时进行中（focus/rest，含暂停）悬停才显示 ± 按钮与时刻范围
+  const adjusting = ['focus','rest'].includes(mode);
+  $('ringWrap').classList.toggle('adjusting', adjusting);
+  if(adjusting){
+    const d1 = new Date(startAt), d2 = new Date(paused ? now + leftMs : endAt);
+    $('timeRange').textContent = pad(d1.getHours())+':'+pad(d1.getMinutes()) + ' - ' + pad(d2.getHours())+':'+pad(d2.getMinutes());
+  } else {
+    $('timeRange').textContent = '';
+  }
+
+  $('timeText').textContent = fmt(displayMs);
+  $('timeSub').textContent = sub;
+  $('phaseText').textContent = phase + (paused ? '（已暂停）' : '');
+  $('phaseLabel').className = 'phase-label ' + (ringClass==='rest' ? 'phase-rest' : ringClass==='focus' ? 'phase-focus' : '');
+  const ring = $('ringFg');
+  ring.setAttribute('class', 'ring-fg ' + ringClass); // SVG 元素的 className 只读，须用 setAttribute
+  ring.style.strokeDashoffset = CIRC * (1 - Math.min(1, Math.max(0, progress)));
+
+  // 闭眼休息遮罩
+  const showMini = mode==='mini';
+  $('miniOverlay').classList.toggle('show', showMini);
+  if(showMini){
+    const ms = paused ? miniLeft : miniEndAt - now;
+    $('miniCount').textContent = Math.max(0, Math.ceil(ms/1000));
+  }
+
+  // 按钮可见性
+  const vis = {
+    startBtn:   mode==='idle',
+    pauseBtn:   ['focus','mini','rest'].includes(mode),
+    stopBtn:    ['focus','mini'].includes(mode),
+    restBtn:    mode==='focusDone',
+    skipRestBtn:mode==='focusDone',
+    doneBtn:    mode==='restDone' || mode==='rest',
+  }; // ± 按钮由 adjusting 悬停样式控制显隐，不做 display 切换
+  for(const id in vis) $(id).classList.toggle('hidden', !vis[id]);
+  $('pauseBtn').textContent = paused ? '继续' : '暂停';
+  $('doneBtn').textContent = mode==='rest' ? '提前结束休息' : '完成，回到准备';
+
+  // 统计
+  $('statMinutes').textContent = stats.minutes;
+  $('statRounds').textContent = stats.rounds;
+  $('statChimes').textContent = sessionChimes;
+
+  document.title = (mode==='idle' ? '' : title + ' · ') + '随机提示音专注计时器';
+}
+
+/* ================= 事件绑定 ================= */
+$('startBtn').addEventListener('click', startFocus);
+$('pauseBtn').addEventListener('click', togglePause);
+$('stopBtn').addEventListener('click', ()=>toIdle('提前结束本轮专注'));
+$('restBtn').addEventListener('click', startRest);
+$('skipRestBtn').addEventListener('click', ()=>toIdle('跳过大休息'));
+$('doneBtn').addEventListener('click', ()=>{ if(mode==='rest') addLog('rest','提前结束大休息'); toIdle(); });
+$('minusBtn').addEventListener('click', ()=>adjust(-5));
+$('plusBtn').addEventListener('click', ()=>adjust(5));
+
+// 点击后移除按钮焦点，避免空格键误触发按钮
+document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
+
+document.addEventListener('keydown', e=>{
+  if(e.code==='Escape'){ closePanel(); return; }
+  if(e.code!=='Space' || e.repeat) return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
+  e.preventDefault();
+  if(['focus','mini','rest'].includes(mode)) togglePause();
+  else if(mode==='idle') startFocus();
+});
+
+renderLogs();
+render();
+
+// 注册 Service Worker（PWA 离线缓存）
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 注册失败', e));
+  });
+}
+})();
+</script>
+</body>
+</html>
