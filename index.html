@@ -227,6 +227,26 @@
   .sound-chip:active{ transform:scale(.96); }
   .warn-text{ font-size:12px; color:#ff9f0a; margin-top:9px; min-height:15px; }
 
+  /* 音量 */
+  .vol-head{ display:flex; justify-content:space-between; align-items:center; }
+  .vol-val{ font-size:12.5px; font-weight:600; color:var(--sub); font-variant-numeric:tabular-nums; }
+  .vol-row{ display:flex; align-items:center; gap:10px; }
+  .vol-icon{ font-size:16px; width:22px; text-align:center; cursor:pointer; user-select:none; flex-shrink:0; transition:transform .15s; }
+  .vol-icon:active{ transform:scale(.85); }
+  .vol-slider{
+    flex:1; -webkit-appearance:none; appearance:none; height:5px; border-radius:3px; cursor:pointer; outline:none;
+    background:linear-gradient(to right, var(--accent) var(--fill,100%), var(--input-bg) var(--fill,100%));
+  }
+  .vol-slider::-webkit-slider-thumb{
+    -webkit-appearance:none; width:17px; height:17px; border-radius:50%; background:#fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.08); cursor:pointer; transition:transform .15s;
+  }
+  .vol-slider::-webkit-slider-thumb:hover{ transform:scale(1.15); }
+  .vol-slider::-moz-range-thumb{
+    width:17px; height:17px; border:none; border-radius:50%; background:#fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.25); cursor:pointer;
+  }
+
   /* 关于 */
   .about{
     margin-top:16px; padding:14px 4px 4px;
@@ -343,6 +363,16 @@
             <div class="sound-chip" data-sound="beep"><span class="s-icon">⚡</span>电子音</div>
           </div>
         </div>
+        <div class="field" style="flex-direction:column;align-items:stretch;gap:9px;">
+          <div class="vol-head">
+            <label>音量</label>
+            <span class="vol-val" id="volVal">100%</span>
+          </div>
+          <div class="vol-row">
+            <span class="vol-icon" id="volMute" title="点击静音 / 取消静音">🔊</span>
+            <input type="range" class="vol-slider" id="cfgVol" min="0" max="100" step="1" value="100">
+          </div>
+        </div>
         <div class="warn-text" id="warnText"></div>
         <div class="about">
           <div class="about-name">随机提示音专注计时器</div>
@@ -350,7 +380,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.0.0</span>
+            <span>版本 v1.1.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-12</span>
           </div>
@@ -372,7 +402,7 @@ const LS = { get(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)); return 
              set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
 
 /* ================= 设置（含边界校验） ================= */
-const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light'}, LS.get('rft_cfg',{}));
+const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100}, LS.get('rft_cfg',{}));
 function readSettings(){
   let warn = '';
   let focus = clampNum(parseInt($('cfgFocus').value)||90, 5, 180);
@@ -418,11 +448,20 @@ document.querySelectorAll('.seg-btn').forEach(b=>{
 });
 
 /* ================= Web Audio 合成提示音 ================= */
-let actx = null;
+let actx = null, masterGain = null;
 function ac(){
   if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
   if(actx.state==='suspended') actx.resume();
   return actx;
+}
+function master(){ // 主音量总线：所有提示音统一经过它输出
+  const a = ac();
+  if(!masterGain){
+    masterGain = a.createGain();
+    masterGain.gain.value = (cfg.volume==null?100:cfg.volume)/100;
+    masterGain.connect(a.destination);
+  }
+  return masterGain;
 }
 const synth = {
   bell(t){ // 铃声：E6 小三度泛音结构，清晰穿透（经典闹铃/计时铃）
@@ -433,7 +472,7 @@ const synth = {
       gn.gain.setValueAtTime(0.0001,t);
       gn.gain.linearRampToValueAtTime(.5*g, t+.006);
       gn.gain.exponentialRampToValueAtTime(.0001, t+2.2);
-      o.connect(gn); gn.connect(a.destination);
+      o.connect(gn); gn.connect(master());
       o.start(t); o.stop(t+2.3);
     });
   },
@@ -445,7 +484,7 @@ const synth = {
       gn.gain.setValueAtTime(0.0001,t);
       gn.gain.linearRampToValueAtTime(.5*g, t+.004);
       gn.gain.exponentialRampToValueAtTime(.0001, t+3.2);
-      o.connect(gn); gn.connect(a.destination);
+      o.connect(gn); gn.connect(master());
       o.start(t); o.stop(t+3.3);
     });
   },
@@ -457,7 +496,7 @@ const synth = {
       g.gain.setValueAtTime(0.0001,t+dt);
       g.gain.linearRampToValueAtTime(.55,t+dt+.01);
       g.gain.exponentialRampToValueAtTime(.0001,t+dt+1.1);
-      o.connect(g); g.connect(a.destination); o.start(t+dt); o.stop(t+dt+1.2);
+      o.connect(g); g.connect(master()); o.start(t+dt); o.stop(t+dt+1.2);
     });
   },
   wood(t){ // 木鱼：E5 音头快速下坠 + 木质噪声敲击（更脆更实）
@@ -468,13 +507,13 @@ const synth = {
     o.frequency.exponentialRampToValueAtTime(440,t+.05); // 快速下坠到 A4
     g.gain.setValueAtTime(1,t);
     g.gain.exponentialRampToValueAtTime(.0001,t+.12);
-    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+.14);
+    o.connect(g); g.connect(master()); o.start(t); o.stop(t+.14);
     const len=a.sampleRate*.025, buf=a.createBuffer(1,len,a.sampleRate), d=buf.getChannelData(0);
     for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
     const n=a.createBufferSource(); n.buffer=buf;
     const ng=a.createGain(); ng.gain.setValueAtTime(.4,t); ng.gain.exponentialRampToValueAtTime(.0001,t+.025);
     const bp=a.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2000; bp.Q.value=1.2;
-    n.connect(bp); bp.connect(ng); ng.connect(a.destination); n.start(t);
+    n.connect(bp); bp.connect(ng); ng.connect(master()); n.start(t);
   },
   xylo(t){ // 木琴：C6 木质敲击 + 高泛音（厨房/运动计时器常用）
     const a = ac(), f = 1046.5; // C6
@@ -484,7 +523,7 @@ const synth = {
       gn.gain.setValueAtTime(0.0001,t);
       gn.gain.linearRampToValueAtTime(.55*g, t+.003);
       gn.gain.exponentialRampToValueAtTime(.0001, t+.45);
-      o.connect(gn); gn.connect(a.destination);
+      o.connect(gn); gn.connect(master());
       o.start(t); o.stop(t+.5);
     });
   },
@@ -497,7 +536,7 @@ const synth = {
       g.gain.exponentialRampToValueAtTime(.3,t+dt+.01);
       g.gain.setValueAtTime(.3,t+dt+.12);
       g.gain.exponentialRampToValueAtTime(.0001,t+dt+.16);
-      o.connect(g); g.connect(a.destination); o.start(t+dt); o.stop(t+dt+.2);
+      o.connect(g); g.connect(master()); o.start(t+dt); o.stop(t+dt+.2);
     });
   }
 };
@@ -519,7 +558,7 @@ function playFinish(){
       g.gain.setValueAtTime(0.0001, t);
       g.gain.linearRampToValueAtTime(.5, t+.008);
       g.gain.exponentialRampToValueAtTime(.0001, t+.55);
-      o.connect(g); g.connect(a.destination);
+      o.connect(g); g.connect(master());
       o.start(t); o.stop(t+.6);
     });
   }catch(e){ console.warn('音频播放失败', e); }
@@ -537,6 +576,33 @@ document.querySelectorAll('.sound-chip').forEach(chip=>{
     chip.classList.add('active');
   }
 });
+
+/* ================= 音量 ================= */
+let lastVol = 100; // 静音前的音量，用于取消静音时恢复
+function applyVolume(){
+  const v = clampNum(cfg.volume==null?100:cfg.volume, 0, 100);
+  cfg.volume = v;
+  $('cfgVol').value = v;
+  $('cfgVol').style.setProperty('--fill', v+'%');
+  $('volVal').textContent = v+'%';
+  $('volMute').textContent = v===0 ? '🔇' : (v<50 ? '🔉' : '🔊');
+  if(masterGain) masterGain.gain.value = v/100;
+}
+$('cfgVol').addEventListener('input', ()=>{
+  cfg.volume = parseInt($('cfgVol').value, 10) || 0;
+  applyVolume();
+  LS.set('rft_cfg', cfg);
+});
+$('cfgVol').addEventListener('change', ()=>{
+  if(cfg.volume>0) playChime(1); // 松手试听当前音量
+});
+$('volMute').addEventListener('click', ()=>{
+  if(cfg.volume > 0){ lastVol = cfg.volume; cfg.volume = 0; }
+  else cfg.volume = lastVol > 0 ? lastVol : 100;
+  applyVolume();
+  LS.set('rft_cfg', cfg);
+});
+applyVolume();
 
 /* ================= 统计 & 日志（localStorage） ================= */
 const todayKey = () => new Date().toLocaleDateString('sv'); // YYYY-MM-DD 本地
