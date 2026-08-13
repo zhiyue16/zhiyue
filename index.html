@@ -272,6 +272,32 @@ var _hmt = _hmt || [];
   .mini-overlay.show{ display:flex; }
   .mini-overlay .mini-title{ font-size:15px; font-weight:600; color:var(--sub); letter-spacing:3px; }
   .mini-overlay .mini-count{ font-size:72px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--accent); line-height:1; }
+  .mini-overlay .mini-tip{ font-size:13px; color:var(--sub); max-width:230px; text-align:center; line-height:1.5; min-height:20px; }
+  /* 提示音预告条：铃响后先提示 3 秒再弹遮罩，可推迟 2 分钟。
+     注意：按项目性能约定不用 backdrop-filter，用不透明底色 */
+  .chime-preview{
+    position:absolute; left:50%; bottom:22px; transform:translate(-50%,6px); z-index:4;
+    display:flex; align-items:center; gap:10px; padding:7px 8px 7px 16px; white-space:nowrap;
+    background:var(--bg); border:1px solid var(--hairline); border-radius:100px;
+    box-shadow:var(--shadow-pill); font-size:13px; font-weight:600;
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+  }
+  .chime-preview.show{ opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+  .cp-btn{
+    border:none; border-radius:100px; padding:5px 13px; font-size:12px; font-weight:600;
+    background:var(--input-bg); color:var(--sub); cursor:pointer; font-family:inherit;
+    transition:color .15s, transform .12s;
+  }
+  .cp-btn:hover{ color:var(--text); }
+  .cp-btn:active{ transform:scale(.95); }
+  /* 近 15 周热力图（GitHub 风格：颜色越深专注越久） */
+  .heat-grid{ display:grid; grid-template-rows:repeat(7,11px); grid-auto-flow:column; grid-auto-columns:11px; gap:3px; justify-content:center; padding:4px 0 2px; }
+  .heat-cell{ width:11px; height:11px; border-radius:3px; background:var(--input-bg); }
+  .heat-cell.h1{ background:rgba(40,200,64,.35); }
+  .heat-cell.h2{ background:rgba(40,200,64,.55); }
+  .heat-cell.h3{ background:rgba(40,200,64,.78); }
+  .heat-cell.h4{ background:var(--green); }
+  .heat-legend{ display:flex; align-items:center; justify-content:flex-end; gap:4px; margin-top:7px; font-size:10px; color:var(--sub); }
   /* 控制按钮 */
   .controls{ display:flex; gap:12px; margin:16px 0 6px; }
   .btn{
@@ -546,7 +572,13 @@ var _hmt = _hmt || [];
       <div class="mini-overlay" id="miniOverlay">
         <div class="mini-title">闭眼休息</div>
         <div class="mini-count" id="miniCount">10</div>
+        <div class="mini-tip" id="miniTip"></div>
         <div class="mini-title" style="letter-spacing:1px;font-size:12px;">秒后继续专注</div>
+      </div>
+      <!-- 提示音预告条：铃响 → 预告 3 秒 → 闭眼遮罩；预告期间可推迟 2 分钟 -->
+      <div class="chime-preview" id="chimePreview">
+        <span>🔔 休息即将开始</span>
+        <button type="button" class="cp-btn" id="postponeBtn">推迟 2 分钟</button>
       </div>
     </div>
     <div class="goal-row">
@@ -695,9 +727,14 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.14.3</span>
+            <span>版本 v1.15.0</span>
             <span class="about-sep">·</span>
-            <span>2026-08-13</span>
+            <span>2026-08-14</span>
+          </div>
+          <div class="about-update">
+            <button type="button" class="au-btn" id="exportData">导出数据</button>
+            <button type="button" class="au-btn" id="importData">导入数据</button>
+            <input type="file" id="importFile" accept="application/json" style="display:none;">
           </div>
           <div class="about-update">
             <button type="button" class="au-btn" id="checkUpdate">检查更新</button>
@@ -731,6 +768,9 @@ var _hmt = _hmt || [];
         </div>
         <div class="group-label">近 7 天专注（分钟）</div>
         <div class="week-chart" id="weekChart"></div>
+        <div class="group-label">近 15 周</div>
+        <div class="heat-grid" id="heatGrid"></div>
+        <div class="heat-legend">少<span class="heat-cell"></span><span class="heat-cell h1"></span><span class="heat-cell h2"></span><span class="heat-cell h3"></span><span class="heat-cell h4"></span>多</div>
         <div class="group-label">更多数据</div>
         <div class="stat-rows">
           <div class="stat-row"><span class="sr-l">累计专注天数</span><span class="sr-r" id="srDays">0 天</span></div>
@@ -754,6 +794,8 @@ const clampNum = (v,a,b) => Math.min(b, Math.max(a, v));
 const pad = n => String(n).padStart(2,'0');
 const LS = { get(k,d){ try{ const v=JSON.parse(localStorage.getItem(k)); return v==null?d:v; }catch(e){ return d; } },
              set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
+// 请求持久化存储：降低浏览器在磁盘压力下清除用户累计专注记录的概率
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 /* [优化4] HTML 转义工具：renderLogs 用 innerHTML 拼接日志文本，
    虽然当前文本均由程序生成，但日志内容含数字/用户可改的配置，转义可杜绝潜在 XSS */
 const escHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -761,7 +803,7 @@ const escHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;'
    缓存后避免重复 DOM 查询，降低主线程开销（视觉与功能完全不变） */
 const dom = {};
 ['phaseLabel','phaseText','ringWrap','ringFg','timeText','timeRange','timeSub',
- 'miniOverlay','miniCount','startBtn','pauseBtn','stopBtn','restBtn',
+ 'miniOverlay','miniCount','chimePreview','startBtn','pauseBtn','stopBtn','restBtn',
  'skipRestBtn','doneBtn','statMinutes','statRounds','statChimes'].forEach(id => dom[id] = $(id));
 /* ================= 设置（含边界校验） ================= */
 const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100, goal:4, continuous:false}, LS.get('rft_cfg',{}));
@@ -1019,6 +1061,20 @@ const todayKey = () => {
   const d = new Date();
   return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
 };
+/* localStorage 结构版本（v1.15.0 引入）：以后变更数据结构时按 v<2、v<3… 追加阶梯迁移，
+   老用户存档逐级升级，不会因结构演进而损坏 */
+const SCHEMA_VERSION = 1;
+(function migrateSchema(){
+  const v = LS.get('rft_schema', 0);
+  if(v >= SCHEMA_VERSION) return;
+  if(v < 1){ // v0→v1：早期历史归档没有 chimes 字段，补 0
+    const h = LS.get('rft_history', {});
+    let dirty = false;
+    for(const k in h){ if(h[k] && h[k].chimes==null){ h[k].chimes = 0; dirty = true; } }
+    if(dirty) LS.set('rft_history', h);
+  }
+  LS.set('rft_schema', SCHEMA_VERSION);
+})();
 let stats = LS.get('rft_stats', null);
 if(!stats || stats.date !== todayKey()) stats = {date: todayKey(), minutes:0, rounds:0, chimes:0};
 if(stats.chimes==null) stats.chimes = 0; // 兼容 v1.5 及更早的存档
@@ -1122,6 +1178,16 @@ function renderStats(){
     `<div class="wc-barwrap"><div class="wc-bar" style="height:${Math.max(3, Math.round(w.m/maxM*100))}%"></div></div>`+
     `<div class="wc-day">${escHtml(w.label)}</div></div>`
   ).join('');
+  // 近 15 周热力图（v1.15.0，GitHub 风格：颜色越深专注越久；阈值 30/60/120 分钟分档）
+  const HEAT_DAYS = 15*7, heatCells = [];
+  for(let i=HEAT_DAYS-1; i>=0; i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const k = dateKeyOf(d);
+    const m = (history[k]||{minutes:0}).minutes;
+    const lv = m<=0 ? 0 : m<30 ? 1 : m<60 ? 2 : m<120 ? 3 : 4;
+    heatCells.push(`<div class="heat-cell${lv?' h'+lv:''}" title="${k} · ${m} 分钟"></div>`);
+  }
+  $('heatGrid').innerHTML = heatCells.join('');
   // 更多数据
   let streak = 0;
   for(let i=0; ; i++){
@@ -1145,12 +1211,15 @@ let mode = 'idle';
 let paused = false;
 let endAt = 0, leftMs = 0, totalMs = 0, startAt = 0; // 当前阶段（focus / rest）
 let miniEndAt = 0, miniLeft = 0;                      // 10 秒闭眼休息
+let previewEndAt = 0, previewLeft = 0;                // 提示音预告（铃响后 3 秒再弹遮罩）
 let chimeAt = null, chimeLeft = null;                 // 下一次随机提示音
 let sessionChimes = 0;
 let sumMs = 0, sumChimes = 0;                          // 本轮小结快照（专注完成时生成）
 let focusAccMs = 0, lastTick = Date.now();            // 专注分钟累计
 let roundBaseMins = 0;                                // 本轮开始时 stats.minutes 基线（用于算本轮已专注）
 const MINI_MS = 10000, NO_CHIME_TAIL = 5*60000;
+const PREVIEW_MS = 3000,        // 铃响后先预告 3 秒再弹闭眼遮罩
+      POSTPONE_MS = 2*60000;    // 预告期可推迟 2 分钟
 const ABANDON_CONFIRM_MS = 30000,   // 超过30秒提前结束需弹确认
       RECORD_MIN_MS = 5*60000;      // 仅用于弹窗文案区分（提示是否满5分钟）
 // 本轮到目前为止已实际专注的毫秒数（= 已 flush 进 stats 的分钟 + focusAccMs 零头）
@@ -1176,16 +1245,19 @@ function startFocus(){
   mode='focus'; paused=false;
   totalMs = cfg.focus*60000; endAt = now + totalMs; startAt = now;
   sessionChimes = 0; focusAccMs = 0; roundBaseMins = stats.minutes;
+  previewEndAt = 0; previewLeft = 0; // 清掉上一轮可能残留的预告状态
   scheduleChime(now, totalMs);
   setInputsEnabled(false);
   addLog('focus', `开始专注 ${cfg.focus} 分钟`);
   render();
 }
+// 闭眼遮罩里随机展示的引导文案（Safe Eyes / Stretchly 式微休息引导）
+const MINI_TIPS = ['闭上眼，深呼吸三次','转动眼球，上下左右各看一圈','远眺 6 米外，放松睫状肌','放松肩膀，缓慢转动颈部','闭目养神，什么都不用想','轻轻按揉太阳穴'];
 function startMini(now){
   mode='mini'; miniEndAt = now + MINI_MS; chimeAt = null;
   sessionChimes++;
   stats.chimes++; saveStats(); // 累计提示音同步进统计
-  playChime(1);
+  $('miniTip').textContent = MINI_TIPS[Math.floor(Math.random()*MINI_TIPS.length)];
   addLog('chime', `第 ${sessionChimes} 次提示音响起，闭眼休息 10 秒`);
 }
 function endMini(now){
@@ -1206,6 +1278,7 @@ function bumpRound(){
 function focusComplete(){
   flushFocusMinutes();
   bumpRound();
+  previewEndAt = 0; previewLeft = 0; // 防止预告残留到完成页
   sumMs = totalMs; sumChimes = sessionChimes; // 生成本轮小结快照
   playFinish(); // 番茄钟式三声升调结束铃
   addLog('focus', `专注完成 ${fmt(sumMs)}，提示音 ${sumChimes} 次，闭眼休息 ${sumChimes*10} 秒`);
@@ -1310,6 +1383,7 @@ function requestAbandon(){
       leftMs = endAt - now; // mode 只会是 focus/mini（rest 已在函数开头拦截）
       if(mode==='mini') miniLeft = miniEndAt - now;
       chimeLeft = chimeAt ? chimeAt - now : null;
+      previewEndAt = 0; previewLeft = 0; // 预告在放弃弹窗打开时作废（3 秒窗口的边缘场景，取消后不重播）
       paused = true; render();
     }
     $('abandonMask').classList.add('show');
@@ -1338,13 +1412,13 @@ function togglePause(){
   const now = Date.now();
   if(!paused){
     paused = true;
-    if(mode==='focus'){ leftMs = endAt - now; chimeLeft = chimeAt ? chimeAt - now : null; }
+    if(mode==='focus'){ leftMs = endAt - now; chimeLeft = chimeAt ? chimeAt - now : null; previewLeft = previewEndAt ? previewEndAt - now : 0; previewEndAt = 0; }
     if(mode==='mini'){ miniLeft = miniEndAt - now; leftMs = endAt - now; }
     if(mode==='rest'){ leftMs = endAt - now; }
     addLog('info', '已暂停');
   }else{
     paused = false;
-    if(mode==='focus'){ endAt = now + leftMs; chimeAt = chimeLeft!=null ? now + chimeLeft : null; }
+    if(mode==='focus'){ endAt = now + leftMs; chimeAt = chimeLeft!=null ? now + chimeLeft : null; previewEndAt = previewLeft ? now + previewLeft : 0; previewLeft = 0; }
     if(mode==='mini'){ miniEndAt = now + miniLeft; endAt = now + leftMs; }
     if(mode==='rest'){ endAt = now + leftMs; }
     addLog('info', '继续');
@@ -1389,8 +1463,12 @@ function tick(){
     if(mode==='focus'){
       const left = endAt - now;
       focusAccMs += now - lastTick; flushFocusMinutes();
-      if(chimeAt && now >= chimeAt && left > 0) startMini(now);
-      else if(left <= 0) focusComplete();
+      if(chimeAt && now >= chimeAt && left > 0){
+        // 铃响 → 先出预告条（可推迟 2 分钟），3 秒后再弹闭眼遮罩
+        chimeAt = null; previewEndAt = now + PREVIEW_MS; playChime(1);
+      }else if(previewEndAt && now >= previewEndAt){
+        previewEndAt = 0; startMini(now);
+      }else if(left <= 0) focusComplete();
     }else if(mode==='mini'){
       focusAccMs += now - lastTick; flushFocusMinutes(); // 闭眼休息计入专注时间
       if(now >= miniEndAt) endMini(now);
@@ -1401,7 +1479,15 @@ function tick(){
   lastTick = now;
   render();
 }
-setInterval(tick, 250);
+/* 计时驱动放 Web Worker（v1.15.0）：后台标签页里主线程 setInterval 会被浏览器节流（最低到 1 分钟一次），
+   Worker 定时器不受同等节流，提示音/遮罩/完成在挂机时也能及时触发；不支持 Worker 时回退主线程 */
+if(window.Worker){
+  try{
+    const tickWorker = new Worker(URL.createObjectURL(new Blob(
+      ['setInterval(function(){ postMessage(0); }, 250)'], {type:'text/javascript'})));
+    tickWorker.onmessage = ()=>tick();
+  }catch(e){ setInterval(tick, 250); }
+}else setInterval(tick, 250);
 // 标签页从后台切回时立即按真实时间校准（后台期间 setInterval 会被浏览器节流，时间戳计时本身不丢）
 // 校准前先把"上次 tick 到此刻"这段被节流跳过的时间补进专注累计，避免统计分钟漏计
 function recalibrate(){
@@ -1410,7 +1496,12 @@ function recalibrate(){
   lastTick = now;
   tick();
 }
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) recalibrate(); });
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) return;
+  recalibrate();
+  // iOS 切后台会把 AudioContext 重新挂起：回前台时恢复，否则后续提示音无声
+  if(actx && actx.state==='suspended') actx.resume();
+});
 window.addEventListener('focus', recalibrate);
 /* ================= 渲染 ================= */
 const CIRC = 2*Math.PI*132;
@@ -1471,6 +1562,8 @@ function render(){
   const ring = dom.ringFg;
   ring.setAttribute('class', 'ring-fg ' + ringClass); // SVG 元素的 className 只读，须用 setAttribute
   ring.style.strokeDashoffset = CIRC * (1 - Math.min(1, Math.max(0, progress)));
+  // 提示音预告条（暂停时 previewEndAt 已清零，天然隐藏）
+  dom.chimePreview.classList.toggle('show', mode==='focus' && previewEndAt > now);
   // 闭眼休息遮罩
   const showMini = mode==='mini';
   dom.miniOverlay.classList.toggle('show', showMini);
@@ -1559,6 +1652,33 @@ $('timeText').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){
 $('focusDurOk').addEventListener('click', saveFocusDur);
 $('focusDurCancel').addEventListener('click', closeFocusDur);
 $('focusDurMask').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeFocusDur(); });
+/* ================= 数据备份（导出 / 导入，v1.15.0） ================= */
+// 浏览器存储是"借来的"：导出 JSON 是纯前端唯一的数据保险；导入后整页刷新走完整启动+迁移流程
+$('exportData').addEventListener('click', ()=>{
+  const data = {app:'random-focus-timer', version:'v1.15.0', exportedAt:new Date().toISOString(),
+    rft_cfg:LS.get('rft_cfg',null), rft_stats:LS.get('rft_stats',null),
+    rft_history:LS.get('rft_history',{}), rft_logs:LS.get('rft_logs',[]), rft_schema:LS.get('rft_schema',SCHEMA_VERSION)};
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
+  a.download = 'focus-timer-backup-' + todayKey() + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+  addLog('info', '已导出数据备份');
+});
+$('importData').addEventListener('click', ()=>$('importFile').click());
+$('importFile').addEventListener('change', e=>{
+  const f = e.target.files[0]; e.target.value = ''; // 清空以便重复选同一文件
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    try{
+      const d = JSON.parse(rd.result);
+      if(!d || typeof d!=='object' || d.app!=='random-focus-timer') throw new Error('bad file');
+      ['rft_cfg','rft_stats','rft_history','rft_logs','rft_schema'].forEach(k=>{ if(d[k]!=null) LS.set(k, d[k]); });
+      location.reload();
+    }catch(err){ alert('导入失败：文件格式不正确'); }
+  };
+  rd.readAsText(f);
+});
 /* ================= 事件绑定 ================= */
 $('startBtn').addEventListener('click', startFocus);
 $('pauseBtn').addEventListener('click', togglePause);
@@ -1568,6 +1688,14 @@ $('skipRestBtn').addEventListener('click', ()=>toIdle('跳过大休息'));
 $('doneBtn').addEventListener('click', ()=>{ if(mode==='rest') addLog('rest','提前结束大休息'); toIdle(); });
 $('minusBtn').addEventListener('click', ()=>adjust(-5));
 $('plusBtn').addEventListener('click', ()=>adjust(5));
+// 预告期「推迟 2 分钟」：取消本次预告，2 分钟后再响（落入最后 5 分钟则不再安排）
+$('postponeBtn').addEventListener('click', ()=>{
+  previewEndAt = 0; previewLeft = 0;
+  const now = Date.now(), left = endAt - now;
+  if(mode==='focus' && left - POSTPONE_MS >= NO_CHIME_TAIL){ chimeAt = now + POSTPONE_MS; addLog('info', '已推迟 2 分钟'); }
+  else addLog('info', '剩余时间不足，本次提示音已取消');
+  render();
+});
 // 点击后移除按钮焦点，避免空格键误触发按钮
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
 document.addEventListener('keydown', e=>{
