@@ -7,5 +7,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notify: (kind) => ipcRenderer.send('rft:notify', kind),
   // 开机自启动：读取 / 设置（login item）
   getAutoLaunch: () => ipcRenderer.invoke('rft:loginItem:get'),
-  setAutoLaunch: (enabled) => ipcRenderer.invoke('rft:loginItem:set', enabled)
+  setAutoLaunch: (enabled) => ipcRenderer.invoke('rft:loginItem:set', enabled),
+  // 自动更新（v1.25.0，electron-updater + GitHub Releases）
+  checkUpdate: () => ipcRenderer.invoke('rft:update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('rft:update:download'),
+  installUpdate: () => ipcRenderer.invoke('rft:update:install'),
+  getVersion: () => ipcRenderer.invoke('rft:version'),
+  onUpdateStatus: (cb) => ipcRenderer.on('rft:update:status', (e, s) => cb(s))
 });

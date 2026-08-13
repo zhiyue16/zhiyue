@@ -1018,7 +1018,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.24.0</span>
+            <span>版本 v1.25.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
@@ -2229,8 +2229,6 @@ render();
 // 以下全部为特性检测，浏览器环境行为完全不变。
 const isElectron = typeof window.electronAPI !== 'undefined';
 if(isElectron){
-  const row = $('checkUpdateRow'); // 「检查更新」是 PWA 机制，对客户端无意义，隐藏
-  if(row) row.style.display = 'none';
   // 开机自启动开关（仅桌面客户端显示，状态由主进程 login item 管理，不进 rft_cfg）
   const alRow = $('autoLaunchRow'), alSw = $('cfgAutoLaunch');
   alRow.style.display = '';
@@ -2239,6 +2237,27 @@ if(isElectron){
   alSw.addEventListener('click', ()=>{
     const next = !alSw.classList.contains('on');
     window.electronAPI.setAutoLaunch(next).then(renderAl).catch(()=>{});
+  });
+  /* 检查更新行：网页版走 SW 机制（见文件尾部 IIFE，Electron 下不绑定）；
+     客户端接管为 electron-updater：状态事件驱动按钮与状态文案（v1.25.0） */
+  const auBtn = $('checkUpdate'), auStatus = $('checkUpdateStatus');
+  const setAu = (txt, cls) => { auStatus.textContent = txt; auStatus.className = 'au-status' + (cls ? ' '+cls : ''); };
+  let auState = 'idle';
+  window.electronAPI.getVersion().then(v => setAu('当前 v' + v + ' · 桌面客户端')).catch(()=>{});
+  window.electronAPI.onUpdateStatus(s => {
+    auState = s.state;
+    if(s.state==='checking'){ auBtn.disabled = true; auBtn.textContent = '检查中…'; setAu('检查中…'); }
+    else if(s.state==='latest'){ auBtn.disabled = false; auBtn.textContent = '检查更新'; setAu('已是最新版本', 'ok'); }
+    else if(s.state==='available'){ auBtn.disabled = false; auBtn.textContent = '下载更新'; setAu('发现新版本 v' + s.version, 'new'); }
+    else if(s.state==='downloading'){ auBtn.disabled = true; auBtn.textContent = '下载中 ' + s.percent + '%'; setAu('新版本下载中…', 'new'); }
+    else if(s.state==='ready'){ auBtn.disabled = false; auBtn.textContent = '重启升级'; setAu('更新已就绪，重启完成升级', 'new'); }
+    else if(s.state==='error'){ auBtn.disabled = false; auBtn.textContent = '检查更新'; setAu('检查失败，不影响使用'); }
+    else if(s.state==='dev'){ auBtn.disabled = false; auBtn.textContent = '检查更新'; setAu('开发环境不支持自动更新'); }
+  });
+  auBtn.addEventListener('click', () => {
+    if(auState==='available') window.electronAPI.downloadUpdate();
+    else if(auState==='ready') window.electronAPI.installUpdate();
+    else window.electronAPI.checkUpdate();
   });
 }
 // 完成事件 → 主进程原生通知（focus=专注完成 / rest=大休息结束）
@@ -2301,8 +2320,8 @@ if('serviceWorker' in navigator && !isElectron){
     }).catch(e=>console.warn('SW 注册失败', e));
   });
 }
-// 关于区 · 手动检查更新
-(function(){
+// 关于区 · 手动检查更新（仅网页版 SW 机制；Electron 客户端由上方适配块接管，不绑定此逻辑）
+if(!isElectron) (function(){
   const btn = $('checkUpdate'), status = $('checkUpdateStatus');
   let busy = false;
   const setStatus = (txt, cls)=>{ status.textContent = txt; status.className = 'au-status' + (cls ? ' '+cls : ''); };

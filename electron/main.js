@@ -76,12 +76,51 @@ ipcMain.handle('rft:loginItem:set', (e, enabled) => {
   return app.getLoginItemSettings().openAtLogin;
 });
 
+/* ================= 自动更新（electron-updater + GitHub Releases，v1.25.0） =================
+   数据源：GitHub 仓库 zhiyue16/zhiyue 最新 Release 里的 latest.yml（package.json build.publish 配置）。
+   断网/GitHub 不可达/dev 环境一律静默降级，不影响应用正常使用 */
+let autoUpdater = null;
+try{ autoUpdater = require('electron-updater').autoUpdater; }
+catch(e){ console.warn('electron-updater 不可用（静默降级）', e.message); }
+function sendUpd(state, extra){ if(win && !win.isDestroyed()) win.webContents.send('rft:update:status', Object.assign({state}, extra)); }
+if(autoUpdater){
+  autoUpdater.autoDownload = false; // 用户确认后再下载
+  autoUpdater.on('checking-for-update', () => sendUpd('checking'));
+  autoUpdater.on('update-available', info => {
+    sendUpd('available', { version: info.version });
+    const n = new Notification({ title: `发现新版本 v${info.version}`, body: '点击开始后台下载更新',
+      icon: path.join(__dirname, '..', 'icon-192.png') });
+    n.on('click', () => autoUpdater.downloadUpdate());
+    n.show();
+  });
+  autoUpdater.on('update-not-available', () => sendUpd('latest'));
+  autoUpdater.on('download-progress', p => sendUpd('downloading', { percent: Math.round(p.percent) }));
+  autoUpdater.on('update-downloaded', info => {
+    sendUpd('ready', { version: info.version });
+    const n = new Notification({ title: '更新已就绪', body: '点击重启应用完成升级',
+      icon: path.join(__dirname, '..', 'icon-192.png') });
+    n.on('click', () => { isQuitting = true; autoUpdater.quitAndInstall(); });
+    n.show();
+  });
+  autoUpdater.on('error', err => { console.warn('自动更新失败（静默降级）', err.message); sendUpd('error'); });
+}
+ipcMain.handle('rft:update:check', async () => {
+  if(!autoUpdater){ sendUpd('error'); return; }
+  if(!app.isPackaged){ sendUpd('dev'); return; } // dev 模式无 app-update.yml，autoUpdater 不可用
+  try{ await autoUpdater.checkForUpdates(); }catch(e){ /* error 事件已统一处理 */ }
+});
+ipcMain.handle('rft:update:download', () => { if(autoUpdater) autoUpdater.downloadUpdate(); });
+ipcMain.handle('rft:update:install', () => { isQuitting = true; if(autoUpdater) autoUpdater.quitAndInstall(); });
+ipcMain.handle('rft:version', () => app.getVersion());
+
 app.whenReady().then(() => {
   createWin();
   createTray();
   // 全局快捷键 Ctrl+Alt+F 唤起/隐藏主窗口；被占用时静默降级，不影响启动
   const ok = globalShortcut.register('Control+Alt+F', toggleWin);
   if(!ok) console.warn('全局快捷键 Ctrl+Alt+F 注册失败（可能被占用），已静默跳过');
+  // 启动时静默检查更新（仅打包版；失败走 error 静默降级）
+  if(autoUpdater && app.isPackaged) autoUpdater.checkForUpdates().catch(()=>{});
 });
 
 app.on('window-all-closed', () => { /* 托盘驻留：窗口关完也不退出（Stretchly 同款） */ });
