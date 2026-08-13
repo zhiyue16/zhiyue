@@ -1,6 +1,6 @@
 /* [优化1] 缓存版本升级至 v7：fetch 策略变更（仅缓存 GET、离线导航回退），
    新版本号可触发旧 SW 退场、新缓存生效 */
-const CACHE_NAME = 'focus-timer-v27';
+const CACHE_NAME = 'focus-timer-v28';
 const urlsToCache = [
   './',                 // [优化2] 预缓存根路径，离线访问目录 URL 时也能命中
   './index.html',
@@ -30,6 +30,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   // [优化3] 只处理 GET 请求；POST/PUT 等直接放行，避免被缓存逻辑误拦截
   if (e.request.method !== 'GET') return;
+  // [优化5] version.json 不经过缓存、直连网络：更新提示条要向服务器实时拉取新版本说明，
+  // 若被缓存优先策略拦截，旧缓存会把旧版本说明喂回来
+  if (new URL(e.request.url).pathname.endsWith('/version.json')) return;
   e.respondWith(
     caches.match(e.request, {ignoreSearch: true})
       .then(response => {
