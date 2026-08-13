@@ -235,6 +235,14 @@ var _hmt = _hmt || [];
   .tb-btn:hover{ color:var(--text); background:var(--btn-sec); }
   .tb-btn:active{ transform:scale(.92); }
   .tb-btn.active{ color:var(--accent); background:rgba(0,122,255,.14); border-color:transparent; }
+  /* 未查看成就红点（v1.21.0）：仅 transform/opacity，进成就页后消除 */
+  .tb-btn{ position:relative; }
+  .tb-badge{
+    position:absolute; top:1px; right:1px; width:9px; height:9px; border-radius:50%;
+    background:var(--red); box-shadow:0 0 0 2px var(--bg); pointer-events:none;
+    opacity:0; transform:scale(.3); transition:opacity .2s, transform .2s;
+  }
+  .tb-badge.show{ opacity:1; transform:scale(1); }
   /* 图标翻转动画：仅 transform+opacity（合成层属性），不触发重排，零卡顿 */
   .tb-btn .tb-ic{ display:inline-block; transition:transform .38s cubic-bezier(.2,.8,.3,1.1), opacity .18s; }
   .tb-btn.spin .tb-ic{ transform:rotate(135deg); }
@@ -705,6 +713,22 @@ var _hmt = _hmt || [];
   .log-focus .log-dot{ background:var(--green); }
   .log-info .log-dot{ background:var(--accent); }
   .log-empty{ color:var(--sub); font-size:13px; text-align:center; padding:26px 0; }
+  /* ---------- 成就墙（v1.21.0） ---------- */
+  .achv-list{ display:flex; flex-direction:column; gap:9px; }
+  .achv-item{
+    display:flex; gap:11px; align-items:flex-start; padding:12px 13px; border-radius:14px;
+    background:var(--input-bg); border:1.5px solid transparent; transition:border-color .2s;
+  }
+  .achv-item.done{ border-color:var(--accent); }
+  .achv-item.locked{ opacity:.55; }
+  .av-ic{ font-size:21px; line-height:1.3; flex-shrink:0; }
+  .av-main{ flex:1; min-width:0; }
+  .av-name{ font-size:13.5px; font-weight:700; }
+  .av-desc{ font-size:11.5px; color:var(--sub); margin-top:2px; }
+  .av-status{ font-size:11.5px; color:var(--sub); margin-top:6px; font-variant-numeric:tabular-nums; }
+  .av-status.got{ color:var(--green); font-weight:600; }
+  .av-bar{ height:4px; border-radius:2px; background:var(--hairline); margin-top:6px; overflow:hidden; }
+  .av-fill{ height:100%; border-radius:2px; background:var(--accent); }
 </style>
 </head>
 <body>
@@ -772,7 +796,7 @@ var _hmt = _hmt || [];
     <div class="brand"><span class="dot"></span>随机提示音专注计时器</div>
     <div class="top-actions">
       <!-- [优化3] 图标按钮补充 aria-label，屏幕阅读器可识别；type="button" 避免未来被包进 form 时误提交 -->
-      <button type="button" class="tb-btn" id="panelBtn" title="设置与记录" aria-label="设置与记录"><span class="tb-ic">⚙︎</span></button>
+      <button type="button" class="tb-btn" id="panelBtn" title="设置与记录" aria-label="设置与记录"><span class="tb-ic">⚙︎</span><span class="tb-badge" id="unreadBadge"></span></button>
       <button type="button" class="tb-btn" id="themeBtn" title="切换浅色 / 深色" aria-label="切换浅色 / 深色">
         <svg class="theme-ic" id="themeIcSvg" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
           <!-- 太阳圆盘（月亮形态时缩小并被月牙遮罩咬掉一块） -->
@@ -914,6 +938,7 @@ var _hmt = _hmt || [];
       <button type="button" class="seg-btn active" data-page="settings">设置</button>
       <button type="button" class="seg-btn" data-page="stats">统计</button>
       <button type="button" class="seg-btn" data-page="logs">记录</button>
+      <button type="button" class="seg-btn" data-page="achv">成就</button>
     </div>
     <div class="panel-body">
       <div class="panel-page active" id="pageSettings">
@@ -970,7 +995,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.20.0</span>
+            <span>版本 v1.21.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
@@ -1028,6 +1053,10 @@ var _hmt = _hmt || [];
       <div class="panel-page" id="pageLogs">
         <div class="group-label">今日记录</div>
         <div class="log-list" id="logList"><div class="log-empty">暂无记录，开始一轮专注吧</div></div>
+      </div>
+      <div class="panel-page" id="pageAchv">
+        <div class="group-label">成就墙</div>
+        <div class="achv-list" id="achvList"></div>
       </div>
     </div>
   </div>
@@ -1106,7 +1135,7 @@ $('panelBtn').addEventListener('click', e=>{ e.stopPropagation();
   $('panelBtn').classList.toggle('spin', !$('panel').classList.contains('show')); // 齿轮随开合旋转
   $('panel').classList.contains('show') ? closePanel() : openPanel(); });
 $('scrim').addEventListener('click', closePanel);
-const PAGE_IDS = {settings:'pageSettings', stats:'pageStats', logs:'pageLogs'};
+const PAGE_IDS = {settings:'pageSettings', stats:'pageStats', logs:'pageLogs', achv:'pageAchv'};
 document.querySelectorAll('.seg-btn').forEach(b=>{
   b.addEventListener('click', ()=>{
     document.querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));
@@ -1115,6 +1144,7 @@ document.querySelectorAll('.seg-btn').forEach(b=>{
     const pid = PAGE_IDS[b.dataset.page] || 'pageSettings';
     $(pid).classList.add('active');
     if(pid==='pageStats') renderStats(); // 切到统计页时即时刷新
+    if(pid==='pageAchv'){ renderAchv(); markAchvSeen(); } // 进成就页：刷新成就墙并消除红点
   });
 });
 /* ================= Web Audio 合成提示音 ================= */
@@ -1234,8 +1264,7 @@ function playFinish(){
   }catch(e){ console.warn('音频播放失败', e); }
 }
 // 每日目标达成专属：明亮欢快的上行琶音 + 尾音高八度点睛（区别于结束铃的三升调）
-function playGoalDone(){
-  try{
+function playGoalDone(){  try{
     const a = ac(), t0 = a.currentTime + .03;
     // C5-E5-G5-C6 快速琶音，再叠一个 E6 长音收尾，庆祝感更强
     const seq = [[523.25,0],[659.25,.1],[783.99,.2],[1046.5,.3],[1318.5,.46]];
@@ -1249,6 +1278,26 @@ function playGoalDone(){
       g.gain.exponentialRampToValueAtTime(.0001, t + (last?1.4:.5));
       o.connect(g); g.connect(master());
       o.start(t); o.stop(t + (last?1.5:.55));
+    });
+  }catch(e){ console.warn('音频播放失败', e); }
+}
+// 里程碑达成专属（v1.21.0）：小号式上行四音 + 终止式长音和弦，比目标琶音更隆重
+function playMilestone(){
+  try{
+    const a = ac(), t0 = a.currentTime + .03;
+    [[392,0],[523.25,.12],[659.25,.24],[783.99,.36]].forEach(([f,dt])=>{ // G4→C5→E5→G5 上行
+      const t = t0+dt, o=a.createOscillator(), g=a.createGain();
+      o.type='sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(.4,t+.01);
+      g.gain.exponentialRampToValueAtTime(.0001,t+.5);
+      o.connect(g); g.connect(master()); o.start(t); o.stop(t+.55);
+    });
+    [1046.5,1318.5,1568].forEach(f=>{ // C6+E6+G6 终止式长音和弦
+      const t = t0+.56, o=a.createOscillator(), g=a.createGain();
+      o.type='sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(.32,t+.015);
+      g.gain.exponentialRampToValueAtTime(.0001,t+1.7);
+      o.connect(g); g.connect(master()); o.start(t); o.stop(t+1.8);
     });
   }catch(e){ console.warn('音频播放失败', e); }
 }
@@ -1937,15 +1986,67 @@ let festBarTimer = null;
 function hideFestBar(){ $('festBar').classList.remove('show'); clearTimeout(festBarTimer); }
 /* 避让 updateBar（v1.20.0）：更新提示条显示期间节日横幅下移，防止两条顶部叠放互相遮挡 */
 function syncFestBarPos(){ $('festBar').classList.toggle('lower', $('updateBar').classList.contains('show')); }
-function showFestBar(lines){
+function showFestBar(lines, sticky){
   $('festLines').innerHTML = lines.map(l => `<div class="fb-line">${escHtml(l)}</div>`).join('');
   $('festBar').classList.add('show');
   syncFestBarPos();
   clearTimeout(festBarTimer);
-  festBarTimer = setTimeout(hideFestBar, 8000); // 8 秒自动收起
+  // 节日横幅 8 秒自动收起；里程碑横幅（sticky）须用户手动点击才关闭（v1.21.0）
+  if(!sticky) festBarTimer = setTimeout(hideFestBar, 8000);
 }
 $('festBar').addEventListener('click', hideFestBar);
 const parseKey = k => { const p = k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }; // 本地时区解析 YYYY-MM-DD
+/* 里程碑统计源：累计分钟/轮次/陪伴天数，从 rft_history 实时计算（不新增存储键） */
+function milestoneStats(){
+  let m = 0, r = 0;
+  for(const k in history){ m += history[k].minutes || 0; r += history[k].rounds || 0; }
+  const days = Object.keys(history).sort();
+  const d = days.length ? Math.max(0, Math.floor((parseKey(festToday()) - parseKey(days[0]))/86400000)) : 0;
+  return {m, r, d};
+}
+/* 里程碑统一定义表（v1.21.0）：id/图标/名称/描述/庆祝文案/判定 test/进度 progress，
+   checkCelebrations 与成就墙共用这一份，勿在别处另写判定逻辑。
+   test/progress 入参 s={m:累计分钟, r:累计轮次, d:陪伴天数}；progress 返回 [0~1 比例, 进度文案]。
+   rft_milestones 的值：达成日期字符串（老数据为 true，视同已达成但无日期） */
+const MILESTONES = [
+  {id:'hours10',  icon:'🌱', name:'初露锋芒', desc:'累计专注满 10 小时',  cheer:'🏆 累计专注满 10 小时，好习惯正在养成',
+   test:s=>s.m>=600,   progress:s=>[Math.min(s.m/600,1),  Math.floor(Math.min(s.m,600)/60)+'/10 小时']},
+  {id:'hours50',  icon:'💪', name:'渐入佳境', desc:'累计专注满 50 小时',  cheer:'🏆 累计专注满 50 小时，坚持就是实力',
+   test:s=>s.m>=3000,  progress:s=>[Math.min(s.m/3000,1), Math.floor(Math.min(s.m,3000)/60)+'/50 小时']},
+  {id:'hours100', icon:'👑', name:'百时宗师', desc:'累计专注满 100 小时', cheer:'🏆 累计专注满 100 小时，了不起的坚持',
+   test:s=>s.m>=6000,  progress:s=>[Math.min(s.m/6000,1), Math.floor(Math.min(s.m,6000)/60)+'/100 小时']},
+  {id:'rounds50', icon:'🍅', name:'番茄猎手', desc:'累计完成 50 个番茄',  cheer:'🍅 累计完成 50 个番茄，行动力满格',
+   test:s=>s.r>=50,    progress:s=>[Math.min(s.r/50,1),    Math.min(s.r,50)+'/50 个']},
+  {id:'year1',    icon:'🎂', name:'周年相伴', desc:'使用满一周年',        cheer:'🎉 你使用本计时器已满一周年，感谢一路相伴',
+   test:s=>s.d>=365,   progress:s=>[Math.min(s.d/365,1),   '已陪伴 '+Math.min(s.d,365)+'/365 天']}
+];
+/* 齿轮红点：有"已达成但未查看"的里程碑时显示，进成就页查看后消除（seen 记在 rft_milestones._seen） */
+function updateBadge(){
+  const ms = LS.get('rft_milestones', {});
+  const seen = ms._seen || [];
+  const has = MILESTONES.some(d => ms[d.id] && !seen.includes(d.id));
+  $('unreadBadge').classList.toggle('show', has);
+}
+function markAchvSeen(){
+  const ms = LS.get('rft_milestones', {});
+  ms._seen = MILESTONES.filter(d => ms[d.id]).map(d => d.id);
+  LS.set('rft_milestones', ms);
+  updateBadge();
+}
+/* 成就墙渲染：已达成亮色+达成日期（老数据无日期显示"已达成"）；未达成灰色锁定+实时进度条 */
+function renderAchv(){
+  const ms = LS.get('rft_milestones', {});
+  const s = milestoneStats();
+  $('achvList').innerHTML = MILESTONES.map(d => {
+    const got = ms[d.id];
+    const pr = d.progress(s);
+    const status = got
+      ? `<div class="av-status got">${typeof got==='string' ? escHtml(got)+' 达成' : '已达成'}</div>`
+      : `<div class="av-status">${escHtml(pr[1])}</div><div class="av-bar"><div class="av-fill" style="width:${Math.round(pr[0]*100)}%"></div></div>`;
+    return `<div class="achv-item ${got?'done':'locked'}"><div class="av-ic">${got?d.icon:'🔒'}</div>`+
+      `<div class="av-main"><div class="av-name">${escHtml(d.name)}</div><div class="av-desc">${escHtml(d.desc)}</div>${status}</div></div>`;
+  }).join('');
+}
 /* 检查并弹出庆祝横幅：节日（每天一次）+ 里程碑（每个只一次），命中多条合并成一条横幅。
    调用时机：启动、跨天（checkDayRollover）、分钟冲账（flushFocusMinutes）、轮次进账（bumpRound），
    保证专注中途达成里程碑也能即时触发 */
@@ -1958,37 +2059,28 @@ function checkCelebrations(){
     LS.set('rft_fest_shown', tk);
   }
   const ms = LS.get('rft_milestones', {});
-  let msDirty = false;
-  let totM = 0, totR = 0;
-  for(const k in history){ totM += history[k].minutes || 0; totR += history[k].rounds || 0; }
+  let msDirty = false, celebrated = false;
+  const s = milestoneStats();
   /* 时长类里程碑（10/50/100 小时）：一次只庆祝新达成的最高档，已达成的低档一并标记——
      老用户升级后不会连续炸出三条横幅 */
-  const HOUR_MS = [
-    ['hours10',  600,  '累计专注满 10 小时，好习惯正在养成'],
-    ['hours50',  3000, '累计专注满 50 小时，坚持就是实力'],
-    ['hours100', 6000, '累计专注满 100 小时，了不起的坚持']
-  ];
-  const hit = HOUR_MS.filter(([k,th]) => totM >= th);
-  const newHits = hit.filter(([k]) => !ms[k]);
-  if(newHits.length){
-    lines.push('🏆 ' + newHits[newHits.length-1][2]);
-    hit.forEach(([k]) => { if(!ms[k]){ ms[k] = true; msDirty = true; } });
+  const hourDefs = MILESTONES.filter(d => d.id[0]==='h');
+  const hourHit = hourDefs.filter(d => d.test(s));
+  const hourNew = hourHit.filter(d => !ms[d.id]);
+  if(hourNew.length){
+    lines.push(hourNew[hourNew.length-1].cheer); celebrated = true;
+    hourHit.forEach(d => { if(!ms[d.id]){ ms[d.id] = tk; msDirty = true; } });
   }
-  if(!ms.rounds50 && totR >= 50){ // 累计 50 个番茄
-    lines.push('🍅 累计完成 50 个番茄，行动力满格');
-    ms.rounds50 = true; msDirty = true;
+  MILESTONES.filter(d => d.id[0]!=='h').forEach(d => { // rounds50 / year1
+    if(!ms[d.id] && d.test(s)){ lines.push(d.cheer); ms[d.id] = tk; msDirty = true; celebrated = true; }
+  });
+  if(msDirty){ LS.set('rft_milestones', ms); updateBadge(); }
+  if(lines.length){
+    showFestBar(lines, celebrated);
+    if(celebrated) playMilestone(); // 里程碑专属成就音（区别于节日横幅，仅里程碑触发）
   }
-  if(!ms.year1){ // 使用满一周年：以历史归档里最早的日期推算
-    const days = Object.keys(history).sort();
-    if(days.length && parseKey(tk) - parseKey(days[0]) >= 365*86400000){
-      lines.push('🎉 你使用本计时器已满一周年，感谢一路相伴');
-      ms.year1 = true; msDirty = true;
-    }
-  }
-  if(msDirty) LS.set('rft_milestones', ms);
-  if(lines.length) showFestBar(lines);
 }
 $('lunarCover').textContent = '农历节日数据覆盖至 ' + LUNAR_MAX_YEAR + ' 年';
+updateBadge(); // 启动即刷新红点（有未查看的已达成里程碑时显示）
 applyFest();          // 启动即应用节日限定配色（非节日则摘除）
 checkCelebrations();  // 启动即检查横幅
 /* ================= 专注时长弹窗（仅 idle 可开） ================= */
