@@ -142,16 +142,16 @@
   .theme-ic .tm-core{
     fill:currentColor;
     transform-origin:center;
-    transition:transform .5s cubic-bezier(.2,.8,.3,1.1);
+    transition:transform .45s cubic-bezier(.25,.9,.35,1);
   }
   .theme-ic .tm-cutout{
     transform-origin:center;
-    transition:transform .5s cubic-bezier(.2,.8,.3,1.1);
+    transition:transform .45s cubic-bezier(.25,.9,.35,1);
   }
   .theme-ic .tm-rays{
     stroke:currentColor; stroke-width:1.8;
     transform-origin:center;
-    transition:transform .5s cubic-bezier(.2,.8,.3,1.1), opacity .35s;
+    transition:transform .45s cubic-bezier(.25,.9,.35,1), opacity .3s;
   }
   /* 深色模式：变月亮 */
   html[data-theme="dark"] .theme-ic .tm-core{ transform:scale(1.15); }
@@ -616,7 +616,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.12.0</span>
+            <span>版本 v1.12.1</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -716,7 +716,10 @@ function applyTheme(){
 // 主题切换：SVG 图标随 data-theme 自动做"太阳⇄月亮"形变，
 // 整页颜色由 :root / [data-theme] 上的 transition 平滑过渡，无需 JS 动画帧。
 // 按钮给个轻旋反馈即可；连点安全（切换是幂等的，CSS 过渡自动衔接）。
+let themeBusy = false;
 $('themeBtn').addEventListener('click', ()=>{
+  if(themeBusy) return; // 形变动画期间忽略连点，杜绝"半路反向"造成的卡滞感
+  themeBusy = true; setTimeout(()=>{ themeBusy = false; }, 460);
   cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
   LS.set('rft_cfg', cfg); applyTheme();
 });
