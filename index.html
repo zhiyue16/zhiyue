@@ -217,6 +217,42 @@
   .abandon-btn.danger{ color:#ff453a; background:rgba(255,69,58,.12); }
   html[data-theme="dark"] .abandon-btn.danger{ color:#ff6961; background:rgba(255,105,97,.16); }
   .time-sub{ font-size:13px; color:var(--sub); min-height:17px; }
+  /* idle 时点击可改时长：鼠标变手型 + 悬停微亮 */
+  .time-text{ cursor:default; border-radius:12px; transition:color .15s; user-select:none; }
+  .time-text.clickable{ cursor:pointer; }
+  .time-text.clickable:hover{ color:var(--accent); }
+  /* ---------- 专注时长设置弹窗 ---------- */
+  .fd-mask{
+    position:fixed; inset:0; z-index:58; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.3); opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .fd-mask.show{ opacity:1; pointer-events:auto; }
+  .fd-box{
+    width:270px; padding:22px 20px 18px; border-radius:18px; text-align:center;
+    background:var(--pill); border:1px solid var(--pill-border);
+    backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
+    box-shadow:var(--shadow-pop); transform:scale(.95); transition:transform .2s cubic-bezier(.2,.8,.3,1.1);
+  }
+  .fd-mask.show .fd-box{ transform:none; }
+  .fd-input-row{ display:flex; align-items:baseline; justify-content:center; gap:8px; }
+  .fd-input{
+    width:110px; font-size:20px; font-weight:700; text-align:center; font-family:inherit; color:var(--text);
+    background:var(--input-bg); border:2px solid var(--accent); border-radius:11px; padding:7px 8px; outline:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .fd-input::-webkit-outer-spin-button,.fd-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .fd-input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
+  .fd-unit{ font-size:14px; color:var(--sub); }
+  .fd-range{ font-size:12px; color:var(--sub); margin-top:9px; }
+  .fd-actions{ display:flex; gap:10px; margin-top:16px; }
+  .fd-btn{
+    flex:1; border:none; border-radius:11px; padding:10px 0; font-size:14px; font-weight:600;
+    cursor:pointer; font-family:inherit; background:var(--input-bg); color:var(--text);
+    transition:filter .15s, transform .12s;
+  }
+  .fd-btn:hover{ filter:brightness(1.06); }
+  .fd-btn:active{ transform:scale(.97); }
+  .fd-btn.primary{ background:var(--accent); color:#fff; }
   /* 闭眼休息遮罩 */
   .mini-overlay{
     position:absolute; inset:-6px; border-radius:50%; display:none;
@@ -492,7 +528,7 @@
       <div class="timer-center">
         <div class="time-row">
           <button type="button" class="adjust-btn" id="minusBtn" title="减少 5 分钟" aria-label="减少 5 分钟">−</button>
-          <div class="time-text" id="timeText">90:00</div>
+          <div class="time-text" id="timeText" role="button" tabindex="0" title="点击设置专注时长" aria-label="点击设置专注时长">90:00</div>
           <button type="button" class="adjust-btn" id="plusBtn" title="增加 5 分钟" aria-label="增加 5 分钟">+</button>
         </div>
         <div class="time-range" id="timeRange"></div>
@@ -573,6 +609,20 @@
       </div>
     </div>
   </div>
+  <!-- 专注时长设置弹窗：仅 idle 时点击时间数字弹出 -->
+  <div class="fd-mask" id="focusDurMask" role="dialog" aria-modal="true" aria-label="设置专注时长">
+    <div class="fd-box">
+      <div class="fd-input-row">
+        <input class="fd-input" id="focusDurInput" type="number" min="5" max="180" step="1" aria-label="专注时长（分钟）">
+        <span class="fd-unit">分钟</span>
+      </div>
+      <div class="fd-range">可选范围：5~180 分钟</div>
+      <div class="fd-actions">
+        <button type="button" class="fd-btn" id="focusDurCancel">取消</button>
+        <button type="button" class="fd-btn primary" id="focusDurOk">确定</button>
+      </div>
+    </div>
+  </div>
   <!-- 二级面板：设置 / 记录 -->
   <div class="scrim" id="scrim"></div>
   <div class="panel" id="panel" role="dialog" aria-label="设置与记录">
@@ -636,7 +686,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.13.0</span>
+            <span>版本 v1.14.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -1391,6 +1441,7 @@ function render(){
     dom.timeRange.textContent = '';
   }
   dom.timeText.textContent = fmt(displayMs);
+  dom.timeText.classList.toggle('clickable', mode==='idle'); // idle 时可点击设置时长，其他状态禁用
   dom.timeSub.textContent = sub;
   dom.phaseText.textContent = phase + (paused ? '（已暂停）' : '');
   dom.phaseLabel.className = 'phase-label ' + (ringClass==='rest' ? 'phase-rest' : ringClass==='focus' ? 'phase-focus' : '');
@@ -1455,6 +1506,30 @@ $('goalSave').addEventListener('click', ()=>{
   closeGoal(); renderGoal();
   addLog('info', `每日目标设为 ${goalDraft} 个番茄`);
 });
+/* ================= 专注时长弹窗（仅 idle 可开） ================= */
+function openFocusDur(){
+  if(mode!=='idle') return; // 计时中点击无效
+  const inp = $('focusDurInput');
+  inp.value = cfg.focus;
+  $('focusDurMask').classList.add('show');
+  setTimeout(()=>{ inp.focus(); inp.select(); }, 50); // 等弹窗动画起再聚焦选中，避免闪烁
+}
+function closeFocusDur(){ $('focusDurMask').classList.remove('show'); }
+function saveFocusDur(){
+  const raw = $('focusDurInput').value.trim();
+  let v = parseInt(raw, 10);
+  if(Number.isNaN(v)) v = cfg.focus; // 空/无效 → 保持原值
+  cfg.focus = Math.min(180, Math.max(5, v));
+  LS.set('rft_cfg', cfg);
+  $('cfgFocus').value = cfg.focus; // 同步设置面板里的数字输入框
+  closeFocusDur(); render();
+  addLog('info', `专注时长设为 ${cfg.focus} 分钟`);
+}
+$('timeText').addEventListener('click', openFocusDur);
+$('timeText').addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openFocusDur(); } });
+$('focusDurOk').addEventListener('click', saveFocusDur);
+$('focusDurCancel').addEventListener('click', closeFocusDur);
+$('focusDurMask').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeFocusDur(); });
 /* ================= 事件绑定 ================= */
 $('startBtn').addEventListener('click', startFocus);
 $('pauseBtn').addEventListener('click', togglePause);
@@ -1467,7 +1542,8 @@ $('plusBtn').addEventListener('click', ()=>adjust(5));
 // 点击后移除按钮焦点，避免空格键误触发按钮
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
 document.addEventListener('keydown', e=>{
-  if(e.code==='Escape'){ if($('goalMask').classList.contains('show')) closeGoal(); else if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
+  if(e.code==='Escape'){ if($('focusDurMask').classList.contains('show')) closeFocusDur(); else if($('goalMask').classList.contains('show')) closeGoal(); else if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
+  if(e.key==='Enter' && $('focusDurMask').classList.contains('show')){ e.preventDefault(); saveFocusDur(); return; }
 });
 renderLogs();
 render();
