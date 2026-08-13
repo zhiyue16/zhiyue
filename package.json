@@ -1,0 +1,41 @@
+{
+  "name": "random-focus-timer",
+  "version": "1.24.0",
+  "description": "随机提示音专注计时器 · 桌面客户端（Electron 壳，网页代码原样复用）",
+  "main": "electron/main.js",
+  "author": "纸月十六",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.zhiyue.focustimer",
+    "productName": "随机提示音专注计时器",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "index.html",
+      "sw.js",
+      "manifest.json",
+      "version.json",
+      "icon-192.png",
+      "icon-512.png",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "随机提示音专注计时器"
+    }
+  }
+}
