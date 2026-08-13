@@ -344,6 +344,14 @@
   .field{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--hairline); }
   .field:last-of-type{ border-bottom:none; }
   .field label{ font-size:14px; font-weight:500; flex-shrink:0; }
+  .field label .unit{ display:block; margin-left:0; margin-top:2px; }
+  /* 开关（连续专注） */
+  .switch{ width:46px; height:27px; border-radius:999px; border:none; cursor:pointer; flex-shrink:0;
+    background:var(--input-bg); position:relative; transition:background .2s; padding:0; }
+  .switch .knob{ position:absolute; top:3px; left:3px; width:21px; height:21px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .2s cubic-bezier(.3,.9,.4,1.1); }
+  .switch.on{ background:var(--accent); }
+  .switch.on .knob{ transform:translateX(19px); }
   .field .unit{ font-size:12px; color:var(--sub); margin-left:4px; }
   .num-input{
     width:72px; padding:6px 10px; border-radius:9px; border:none;
@@ -584,6 +592,10 @@
           <label for="cfgRest">大休息时长<span class="unit">1–120 分钟</span></label>
           <span><input class="num-input" id="cfgRest" type="number" min="1" max="120" value="20"><span class="unit">分钟</span></span>
         </div>
+        <div class="field">
+          <label for="cfgContinuous">连续专注<span class="unit">完成自动休息，休息完自动下一轮</span></label>
+          <button type="button" class="switch" id="cfgContinuous" role="switch" aria-checked="false" aria-label="连续专注"><span class="knob"></span></button>
+        </div>
         <div class="group-label">提示音</div>
         <div class="field">
           <label>随机间隔</label>
@@ -624,7 +636,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.12.2</span>
+            <span>版本 v1.13.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -693,8 +705,9 @@ const dom = {};
  'miniOverlay','miniCount','startBtn','pauseBtn','stopBtn','restBtn',
  'skipRestBtn','doneBtn','statMinutes','statRounds','statChimes'].forEach(id => dom[id] = $(id));
 /* ================= 设置（含边界校验） ================= */
-const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100, goal:4}, LS.get('rft_cfg',{}));
+const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100, goal:4, continuous:false}, LS.get('rft_cfg',{}));
 if(cfg.goal==null) cfg.goal = 4; // 兼容旧存档
+if(cfg.continuous==null) cfg.continuous = false; // 兼容旧存档
 function readSettings(){
   let warn = '';
   // num(v, min, max, dflt)：解析失败(空/非数字)用默认值，否则按边界钳制（0 会被钳到下限而非误判为空）
@@ -714,6 +727,13 @@ function readSettings(){
   $(id).value = cfg[{cfgFocus:'focus',cfgMinInt:'minInt',cfgMaxInt:'maxInt',cfgRest:'rest'}[id]];
   $(id).addEventListener('change', ()=>{ readSettings(); if(mode==='idle') render(); });
 });
+/* 连续专注开关 */
+(function(){
+  const sw = $('cfgContinuous');
+  function renderSwitch(){ sw.classList.toggle('on', !!cfg.continuous); sw.setAttribute('aria-checked', String(!!cfg.continuous)); }
+  sw.addEventListener('click', ()=>{ cfg.continuous = !cfg.continuous; LS.set('rft_cfg', cfg); renderSwitch(); });
+  renderSwitch();
+})();
 /* ================= 主题 ================= */
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', cfg.theme);
@@ -1113,11 +1133,16 @@ function bumpRound(){
 }
 function focusComplete(){
   flushFocusMinutes();
-  mode='focusDone'; paused=false; chimeAt=null;
   bumpRound();
   sumMs = totalMs; sumChimes = sessionChimes; // 生成本轮小结快照
   playFinish(); // 番茄钟式三声升调结束铃
   addLog('focus', `专注完成 ${fmt(sumMs)}，提示音 ${sumChimes} 次，闭眼休息 ${sumChimes*10} 秒`);
+  if(cfg.continuous){ // 连续模式：响铃后直接进大休息，不停留完成页
+    celebrate();
+    startRest();
+    return;
+  }
+  mode='focusDone'; paused=false; chimeAt=null;
   celebrate();
   render();
 }
@@ -1129,12 +1154,18 @@ function startRest(){
   const now = Date.now();
   mode='rest'; paused=false;
   totalMs = cfg.rest*60000; endAt = now + totalMs; startAt = now;
+  chimeAt = null; chimeLeft = null; // 清掉可能残留的提示音计划（连续模式下沿用上一轮 endAt 的 chimeAt 已无意义）
   addLog('rest', `开始大休息 ${cfg.rest} 分钟`);
   render();
 }
 function restComplete(){
-  mode='restDone'; paused=false;
   playFinish(); // 番茄钟式三声升调结束铃
+  if(cfg.continuous){ // 连续模式：休息完直接开下一轮，一直循环直到手动结束
+    addLog('rest', '大休息结束，自动开始下一轮');
+    startFocus();
+    return;
+  }
+  mode='restDone'; paused=false;
   addLog('rest', '大休息结束');
   render();
 }
@@ -1150,6 +1181,17 @@ function toIdle(msg){
 function settleAbandon(countRound){
   const elapsed = elapsedFocusMs();
   const mins = Math.floor(elapsed/60000);
+  if(countRound && cfg.continuous){
+    // 连续模式下的"结束并保存"：只把已专注时间存下来，直接回准备页（不计番茄、不进循环）
+    const totalMins = Math.max(1, mins);
+    const flushed = stats.minutes - roundBaseMins;
+    const add = Math.max(0, totalMins - flushed);
+    if(add > 0){ stats.minutes += add; saveStats(); }
+    focusAccMs = 0;
+    addLog('focus', `结束并保存本轮 ${fmt(elapsed)}，已退出连续专注`);
+    toIdle();
+    return;
+  }
   if(countRound){
     // 结束并保存：分钟据实计 + 计 1 个番茄轮次，并给完成反馈（铃+小结+庆祝）
     const totalMins = Math.max(1, mins);                  // 至少记 1 分钟
@@ -1180,9 +1222,15 @@ function requestAbandon(){
   const elapsed = elapsedFocusMs();
   if(elapsed > ABANDON_CONFIRM_MS){
     const mins = Math.floor(elapsed/60000);
-    $('abandonDesc').textContent = elapsed >= RECORD_MIN_MS
-      ? `本次专注已 ${mins} 分钟。「结束并保存」计 1 个番茄；「放弃」将不保存任何记录。`
-      : '本次专注不足 5 分钟。「结束并保存」计 1 个番茄；「放弃」将不保存任何记录。';
+    if(cfg.continuous){
+      $('abandonDesc').textContent = '正在连续专注中。「结束并保存」会把本次时间存下并停止循环；「放弃」将不保存任何记录。';
+      $('abandonSave').textContent = '结束并保存';
+    }else{
+      $('abandonDesc').textContent = elapsed >= RECORD_MIN_MS
+        ? `本次专注已 ${mins} 分钟。「结束并保存」计 1 个番茄；「放弃」将不保存任何记录。`
+        : '本次专注不足 5 分钟。「结束并保存」计 1 个番茄；「放弃」将不保存任何记录。';
+      $('abandonSave').textContent = '结束并保存';
+    }
     // 冻结计时（若未在暂停态）：保存当前剩余，置 paused
     abandonWasPaused = paused;
     if(!paused){
@@ -1324,7 +1372,7 @@ function render(){
     case 'rest':
       displayMs = leftMsNow; phase='大休息中'; ringClass='rest';
       progress = totalMs ? 1 - leftMsNow/totalMs : 0;
-      sub = paused ? '已暂停' : '放松一下吧';
+      sub = paused ? '已暂停' : (cfg.continuous ? '休息完自动开始下一轮' : '放松一下吧');
       title = `${fmt(displayMs)} 休息中`;
       break;
     case 'restDone':
