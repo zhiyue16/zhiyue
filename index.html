@@ -685,7 +685,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.14.1</span>
+            <span>版本 v1.14.2</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -1028,8 +1028,21 @@ function pruneHistory(){
 }
 pruneHistory(); // 启动时裁剪一次
 let logs = LS.get('rft_logs', []);
+/* 跨天自动归档：页面挂机跨过零点时，把旧日期的累计留在旧日期名下、今日计数清零重新开始。
+   原实现是 saveStats 直接把 stats.date 改成新日期，导致昨天已累计的分钟/轮次被算进今天 */
+function checkDayRollover(){
+  const tk = todayKey();
+  if(stats.date === tk) return;
+  const hadActivity = stats.minutes>0 || stats.rounds>0 || stats.chimes>0;
+  syncHistory(); // stats.date 仍是旧日期：先把旧数据归档到旧日期名下
+  stats = {date: tk, minutes:0, rounds:0, chimes:0};
+  // 进行中的本轮：跨天前已冲账的分钟已随旧日期归档，基线归零，此后只向新的一天累计
+  roundBaseMins = 0;
+  LS.set('rft_stats', stats);
+  if(hadActivity) addLog('info', '已跨天：昨日数据归入统计，今日重新开始');
+}
 function saveStats(){
-  stats.date = todayKey(); // 若运行途中跨天，把本轮数据归入“今天”（专注归属完成日）
+  checkDayRollover();
   LS.set('rft_stats', stats); syncHistory();
   if($('pageStats').classList.contains('active')) renderStats();
 }
@@ -1361,6 +1374,7 @@ function adjust(deltaMin){ // 运行中 ±5 分钟
 /* ================= 主循环 ================= */
 function tick(){
   const now = Date.now();
+  checkDayRollover(); // 挂机跨天时及时归档清零，不必等刷新页面
   if(!paused){
     if(mode==='focus'){
       const left = endAt - now;
