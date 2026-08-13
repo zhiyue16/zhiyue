@@ -200,6 +200,52 @@
   .btn-green{ background:var(--green); color:#fff; }
   .btn-ghost{ background:var(--btn-sec); color:var(--text); }
   .btn.hidden{ display:none; }
+  /* ---------- 每日目标（主页） ---------- */
+  .goal-row{
+    display:flex; align-items:center; gap:8px; margin:10px 0 0;
+    font-size:13px; color:var(--sub); user-select:none;
+  }
+  .goal-pill{
+    display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:100px;
+    background:var(--input-bg); border:1px solid transparent; cursor:pointer;
+    transition:background .18s, border-color .18s, transform .12s; font-family:inherit;
+  }
+  .goal-pill:hover{ background:var(--btn-sec); border-color:var(--hairline); }
+  .goal-pill:active{ transform:scale(.96); }
+  .goal-pill.readonly{ cursor:default; }
+  .goal-pill.readonly:hover{ background:var(--input-bg); border-color:transparent; }
+  .goal-pill .g-ic{ font-size:14px; }
+  .goal-pill .g-txt{ font-variant-numeric:tabular-nums; font-weight:600; color:var(--text); }
+  .goal-pill .g-edit{ font-size:11px; color:var(--sub); }
+  .goal-pill.done{ background:rgba(40,200,64,.14); border-color:rgba(40,200,64,.3); }
+  .goal-pill.done .g-txt{ color:var(--green); }
+  html[data-theme="dark"] .goal-pill.done{ background:rgba(50,215,75,.16); border-color:rgba(50,215,75,.35); }
+  /* 目标编辑小弹层 */
+  .goal-mask{
+    position:fixed; inset:0; z-index:55; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.3); opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .goal-mask.show{ opacity:1; pointer-events:auto; }
+  .goal-box{
+    width:270px; padding:20px 20px 16px; border-radius:18px; text-align:center;
+    background:var(--pill); border:1px solid var(--pill-border);
+    backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
+    box-shadow:var(--shadow-pop); transform:scale(.95); transition:transform .2s cubic-bezier(.2,.8,.3,1.1);
+  }
+  .goal-mask.show .goal-box{ transform:none; }
+  .goal-box .gb-title{ font-size:15px; font-weight:700; }
+  .goal-box .gb-desc{ font-size:12px; color:var(--sub); margin-top:6px; }
+  .goal-stepper{ display:flex; align-items:center; justify-content:center; gap:16px; margin:16px 0 4px; }
+  .goal-stepper .gs-btn{
+    width:38px; height:38px; border-radius:50%; border:1px solid var(--hairline);
+    background:var(--input-bg); color:var(--text); font-size:20px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-family:inherit; transition:background .15s, transform .12s;
+  }
+  .goal-stepper .gs-btn:hover{ background:var(--btn-sec); }
+  .goal-stepper .gs-btn:active{ transform:scale(.9); }
+  .goal-stepper .gs-num{ font-size:34px; font-weight:700; min-width:70px; font-variant-numeric:tabular-nums; }
+  .goal-stepper .gs-num small{ font-size:13px; font-weight:500; color:var(--sub); }
+  .goal-box .gb-actions{ display:flex; gap:10px; margin-top:14px; }
   .hint{ font-size:12px; color:var(--sub); margin-top:4px; user-select:none; }
   kbd{ background:var(--input-bg); border:1px solid var(--hairline); border-radius:6px; padding:1px 7px; font-family:inherit; font-size:11px; }
   /* ---------- 底部统计胶囊 ---------- */
@@ -378,6 +424,13 @@
         <div class="mini-title" style="letter-spacing:1px;font-size:12px;">秒后继续专注</div>
       </div>
     </div>
+    <div class="goal-row">
+      <button type="button" class="goal-pill" id="goalPill" title="设置每日目标">
+        <span class="g-ic" id="goalIc">🎯</span>
+        <span class="g-txt" id="goalTxt">今日目标 0/4</span>
+        <span class="g-edit" id="goalEdit">点击设置</span>
+      </button>
+    </div>
     <div class="controls" id="controls">
       <button type="button" class="btn btn-green" id="startBtn">开始专注</button>
       <button type="button" class="btn btn-primary hidden" id="pauseBtn">暂停</button>
@@ -404,6 +457,22 @@
         <button type="button" class="abandon-btn primary" id="abandonSave">结束并保存</button>
         <button type="button" class="abandon-btn danger" id="abandonOk">放弃</button>
         <button type="button" class="abandon-btn" id="abandonCancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <!-- 每日目标编辑弹层 -->
+  <div class="goal-mask" id="goalMask" role="dialog" aria-modal="true" aria-labelledby="goalTitleText">
+    <div class="goal-box">
+      <div class="gb-title" id="goalTitleText">设置每日目标</div>
+      <div class="gb-desc">每完成 1 轮专注（含提前结束保存）算 1 个番茄</div>
+      <div class="goal-stepper">
+        <button type="button" class="gs-btn" id="goalMinus" aria-label="减少目标">−</button>
+        <div class="gs-num"><span id="goalNum">4</span><small> 个</small></div>
+        <button type="button" class="gs-btn" id="goalPlus" aria-label="增加目标">+</button>
+      </div>
+      <div class="gb-actions">
+        <button type="button" class="abandon-btn" id="goalCancel">取消</button>
+        <button type="button" class="abandon-btn primary" id="goalSave">保存</button>
       </div>
     </div>
   </div>
@@ -466,7 +535,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.7.1</span>
+            <span>版本 v1.8.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -531,7 +600,8 @@ const dom = {};
  'miniOverlay','miniCount','startBtn','pauseBtn','stopBtn','restBtn',
  'skipRestBtn','doneBtn','statMinutes','statRounds','statChimes'].forEach(id => dom[id] = $(id));
 /* ================= 设置（含边界校验） ================= */
-const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100}, LS.get('rft_cfg',{}));
+const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100, goal:4}, LS.get('rft_cfg',{}));
+if(cfg.goal==null) cfg.goal = 4; // 兼容旧存档
 function readSettings(){
   let warn = '';
   // num(v, min, max, dflt)：解析失败(空/非数字)用默认值，否则按边界钳制（0 会被钳到下限而非误判为空）
@@ -1200,10 +1270,42 @@ function render(){
   dom.statMinutes.textContent = stats.minutes;
   dom.statRounds.textContent = stats.rounds;
   dom.statChimes.textContent = sessionChimes;
+  renderGoal();
   // [优化12] 仅在标题变化时写入 document.title，避免每 250ms 触发一次无谓的标题解析
   const fullTitle = (mode==='idle' ? '' : title + ' · ') + '随机提示音专注计时器';
   if(document.title !== fullTitle) document.title = fullTitle;
 }
+/* ================= 每日目标 ================= */
+function renderGoal(){
+  const pill = $('goalPill'), txt = $('goalTxt'), ic = $('goalIc'), edit = $('goalEdit');
+  if(!pill) return;
+  const cur = stats.rounds, goal = Math.max(1, cfg.goal||4);
+  const idle = (mode==='idle');
+  const done = cur >= goal && goal > 0;
+  txt.textContent = done ? `今日目标已达成 ${cur}/${goal}` : `今日目标 ${cur}/${goal}`;
+  ic.textContent = done ? '🎉' : '🎯';
+  pill.classList.toggle('done', done);
+  pill.classList.toggle('readonly', !idle);
+  edit.textContent = idle ? '点击设置' : '';
+}
+let goalDraft = 4;
+function openGoal(){
+  if(mode!=='idle') return; // 计时中只读
+  goalDraft = Math.max(1, cfg.goal||4);
+  $('goalNum').textContent = goalDraft;
+  $('goalMask').classList.add('show');
+}
+function closeGoal(){ $('goalMask').classList.remove('show'); }
+$('goalPill').addEventListener('click', openGoal);
+$('goalMinus').addEventListener('click', ()=>{ goalDraft=Math.max(1,goalDraft-1); $('goalNum').textContent=goalDraft; });
+$('goalPlus').addEventListener('click', ()=>{ goalDraft=Math.min(50,goalDraft+1); $('goalNum').textContent=goalDraft; });
+$('goalCancel').addEventListener('click', closeGoal);
+$('goalMask').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeGoal(); });
+$('goalSave').addEventListener('click', ()=>{
+  cfg.goal = goalDraft; LS.set('rft_cfg', cfg);
+  closeGoal(); renderGoal();
+  addLog('info', `每日目标设为 ${goalDraft} 个番茄`);
+});
 /* ================= 事件绑定 ================= */
 $('startBtn').addEventListener('click', startFocus);
 $('pauseBtn').addEventListener('click', togglePause);
@@ -1216,7 +1318,7 @@ $('plusBtn').addEventListener('click', ()=>adjust(5));
 // 点击后移除按钮焦点，避免空格键误触发按钮
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
 document.addEventListener('keydown', e=>{
-  if(e.code==='Escape'){ if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
+  if(e.code==='Escape'){ if($('goalMask').classList.contains('show')) closeGoal(); else if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
   if(e.code!=='Space' || e.repeat) return;
   const tag = (document.activeElement && document.activeElement.tagName) || '';
   if(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
