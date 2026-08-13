@@ -124,11 +124,12 @@ var _hmt = _hmt || [];
   html[data-fest="spring"] .deco-spring,
   html[data-fest="national"] .deco-national,
   html[data-fest="midautumn"] .deco-midautumn{ display:block; }
-  /* --- 春节：灯笼（挂钩为轴轻摇）。位置与顶部药丸配套：左灯笼挂在药丸左侧（药丸 margin-left:96px 留位），
-     右灯笼在药丸右缘之外（药丸宽约 300px，left:414px）；药丸形态变化时此处必须同步校对 --- */
+  /* --- 春节：灯笼（挂钩为轴轻摇）。位置与顶部药丸配套（v1.22.2 右侧坐标）：
+     右灯笼挂在药丸右侧（药丸 margin-right:96px 留位），左灯笼在药丸左缘之外（药丸宽约 300px，right:414px）；
+     药丸位置变化时此处必须同步校对 --- */
   .lantern{ top:6px; transform-origin:50% 0; animation:lanternSwing 3.6s ease-in-out infinite alternate; }
-  .lantern-l{ left:26px; }
-  .lantern-r{ left:414px; animation-delay:-1.8s; }
+  .lantern-l{ right:414px; }
+  .lantern-r{ right:26px; animation-delay:-1.8s; }
   @keyframes lanternSwing{ from{ transform:rotate(-2.6deg); } to{ transform:rotate(2.6deg); } }
   @media (max-width:1240px){ .lantern{ display:none; } } /* 窄屏标题栏两侧没有空间，灯笼收起 */
   /* --- 春节：竖排对联（红底金字，窄屏隐藏） --- */
@@ -154,11 +155,12 @@ var _hmt = _hmt || [];
   html[data-theme="dark"][data-fest="national"] .deco-rays{
     background:repeating-conic-gradient(from 180deg at 50% 118%, rgba(255,221,68,.095) 0deg 3.5deg, transparent 3.5deg 13deg);
   }
-  /* --- 国庆：五角星（错落排布，2 颗 opacity 呼吸闪烁）。s3 在面板区（top:120px 起）上方，s4 在面板 x 范围左侧 --- */
+  /* --- 国庆：五角星（错落排布，2 颗 opacity 呼吸闪烁）。s3 在面板区（top:120px 起）上方，
+     s4 在面板 x 范围左侧（面板 right:96px 宽 350px，1280px 宽下也不相交） --- */
   .star.s1{ top:96px; left:9%; }
   .star.s2{ top:152px; left:23%; }
   .star.s3{ top:48px; right:12%; }
-  .star.s4{ top:168px; right:32%; }
+  .star.s4{ top:168px; right:36%; }
   .twinkle{ animation:twinkle 2.6s ease-in-out infinite; }
   .twinkle2{ animation:twinkle 3.4s ease-in-out infinite .9s; }
   @keyframes twinkle{ 0%,100%{ opacity:.35; } 50%{ opacity:1; } }
@@ -212,12 +214,13 @@ var _hmt = _hmt || [];
   .blob2{ width:560px;height:560px; background:radial-gradient(circle,#ffc2cf,#f5c6f7); bottom:-220px; right:-140px; opacity:.5; }
   .blob3{ width:420px;height:420px; background:radial-gradient(circle,#a9ecd0,#a8e6f5); top:45%; left:60%; opacity:.4; }
   html[data-theme="dark"] .blob{ opacity:.17; }
-  /* ---------- 顶部药丸（v1.22.0 桌面布局：左对齐紧凑药丸，宽度自适应内容，不再横贯屏幕。
-     margin-left:96px 是给春节灯笼留的悬挂位，药丸位置变化时灯笼坐标需同步校对（见 .lantern-l/.lantern-r） ---------- */
+  /* ---------- 顶部药丸（v1.22.0 桌面布局：紧凑药丸，宽度自适应内容，不再横贯屏幕；
+     v1.22.2 镜像到右上，与右侧面板成组。margin-right:96px 是给春节灯笼留的悬挂位，
+     药丸位置变化时灯笼坐标需同步校对（见 .lantern-l/.lantern-r） ---------- */
   .topbar{
     position:relative; z-index:2;
     width:fit-content; max-width:calc(100vw - 48px);
-    margin:22px 0 0 96px;
+    margin:22px 96px 0 auto;
     display:flex; align-items:center; gap:14px;
     padding:11px 12px 11px 22px;
     background:var(--pill); border:1px solid var(--pill-border); border-radius:100px;
@@ -574,7 +577,7 @@ var _hmt = _hmt || [];
   html[data-theme="dark"] .scrim{ background:rgba(0,0,0,.35); }
   .scrim.show{ opacity:1; pointer-events:auto; }
   .panel{
-    position:fixed; top:120px; right:24px; z-index:30; /* v1.22.1 回右侧展开（宽屏右侧有空白，不遮挡计时器）；
+    position:fixed; top:120px; right:96px; z-index:30; /* v1.22.2：药丸正下方、右缘与药丸右缘对齐成组；
       top:120px 是给右上月亮/星星装饰留的位置（见 .moon/.star），面板位置变化时右侧装饰坐标需同步校对 */
     width:350px; max-height:calc(100vh - 150px);
     display:flex; flex-direction:column;
@@ -998,7 +1001,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.22.1</span>
+            <span>版本 v1.22.2</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
