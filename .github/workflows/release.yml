@@ -1,0 +1,34 @@
+# 推送版本号 tag（如 v1.25.1）触发：云端 Windows 打包并自动创建 GitHub Release，
+# 上传 random-focus-timer-setup-*.exe + latest.yml + *.blockmap（electron-updater 数据源）
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 显式声明即可，公开仓库无需改设置；若仍报权限错误：
+# 仓库 Settings → Actions → General → Workflow permissions → Read and write permissions
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # 用 package-lock.json 精确安装（含 electron 二进制与 electron-updater）
+      - run: npm ci
+
+      # electron-builder 读 package.json 的 build.publish（github: zhiyue16/zhiyue），
+      # --publish always：自动创建与 tag 同名的 Release 并上传全部产物
+      - name: Build installer & publish to GitHub Releases
+        run: npm run dist -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
