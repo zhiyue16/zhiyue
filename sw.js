@@ -1,6 +1,6 @@
 /* [优化1] 缓存版本升级至 v7：fetch 策略变更（仅缓存 GET、离线导航回退），
    新版本号可触发旧 SW 退场、新缓存生效 */
-const CACHE_NAME = 'focus-timer-v16';
+const CACHE_NAME = 'focus-timer-v17';
 const urlsToCache = [
   './',                 // [优化2] 预缓存根路径，离线访问目录 URL 时也能命中
   './index.html',
@@ -9,11 +9,16 @@ const urlsToCache = [
   './icon-512.png'
 ];
 self.addEventListener('install', e => {
+  // 不再立即 skipWaiting：新版本安装完成后进入等待态，
+  // 由页面弹出更新提示、用户确认后通过 message 触发 skipWaiting
   e.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
-      .then(() => self.skipWaiting())
   );
+});
+// 页面确认更新后，激活等待中的新 SW
+self.addEventListener('message', e => {
+  if(e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 self.addEventListener('activate', e => {
   e.waitUntil(
