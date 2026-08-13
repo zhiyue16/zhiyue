@@ -363,6 +363,14 @@
   .sound-chip .s-icon{ font-size:19px; display:block; margin-bottom:3px; }
   .sound-chip.active{ border-color:var(--accent); color:var(--accent); font-weight:700; background:rgba(0,122,255,.1); }
   .sound-chip:active{ transform:scale(.96); }
+  /* 试听提示角标：鼠标悬停浮现 ▶，明确"点我会发声" */
+  .sound-chip{ position:relative; }
+  .sound-chip::after{
+    content:'▶'; position:absolute; top:5px; right:7px; font-size:8px; line-height:1;
+    color:var(--sub); opacity:0; transition:opacity .18s;
+  }
+  .sound-chip:hover::after{ opacity:.8; }
+  .sound-chip.active::after{ opacity:.9; color:var(--accent); }
   .warn-text{ font-size:12px; color:#ff9f0a; margin-top:9px; min-height:15px; }
   /* 音量 */
   .vol-head{ display:flex; justify-content:space-between; align-items:center; }
@@ -587,7 +595,7 @@
           </span>
         </div>
         <div class="field" style="flex-direction:column;align-items:stretch;gap:9px;">
-          <label>音色（点击试听）</label>
+          <label>音色<span style="font-size:11px;color:var(--sub);font-weight:400;margin-left:6px;">点任意卡片试听</span></label>
           <div class="sound-row">
             <div class="sound-chip active" data-sound="bell" role="button" tabindex="0"><span class="s-icon">🔔</span>铃声</div>
             <div class="sound-chip" data-sound="ding" role="button" tabindex="0"><span class="s-icon">🎐</span>叮</div>
@@ -616,7 +624,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.12.1</span>
+            <span>版本 v1.12.2</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -879,11 +887,12 @@ function playGoalDone(){
 }
 document.querySelectorAll('.sound-chip').forEach(chip=>{
   chip.addEventListener('click', ()=>{
+    const wasActive = chip.classList.contains('active');
     document.querySelectorAll('.sound-chip').forEach(c=>c.classList.remove('active'));
     chip.classList.add('active');
     cfg.sound = chip.dataset.sound;
     LS.set('rft_cfg', cfg);
-    playChime(1); // 切换即预览
+    playChime(wasActive ? 2 : 1); // 已选中的再点一次：连播两遍，更清楚区分"重听"与"切换"
   });
   // [优化8] 音色 chip 为 div[role=button]，补充键盘可达性：Enter/Space 触发选择
   chip.addEventListener('keydown', ev=>{
