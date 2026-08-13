@@ -186,7 +186,9 @@ var _hmt = _hmt || [];
   .update-bar{
     position:fixed; top:18px; left:50%; z-index:200;
     display:flex; align-items:center; gap:12px; padding:10px 10px 10px 18px;
-    background:var(--pill); border:1px solid var(--pill-border); border-radius:100px;
+    background:var(--pill); border:1px solid var(--pill-border); border-radius:22px;
+    /* 圆角固定 22px + overflow:hidden：多行内容时 100px 大圆角会切掉首末行文字（v1.17.1 修复溢出） */
+    overflow:hidden;
     backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
     box-shadow:var(--shadow-pop); font-size:13.5px; font-weight:600; white-space:nowrap;
     transform:translate(-50%,-140%); transition:transform .4s cubic-bezier(.2,.8,.3,1.1);
@@ -195,18 +197,21 @@ var _hmt = _hmt || [];
   .update-bar .ub-btn{
     border:none; border-radius:100px; padding:7px 16px; font-size:12.5px; font-weight:600;
     cursor:pointer; font-family:inherit; transition:filter .15s, transform .12s;
+    flex-shrink:0; /* 多行更新点时按钮不被挤压 */
   }
   .update-bar .ub-btn:active{ transform:scale(.95); }
   .update-bar .ub-update{ background:var(--accent); color:#fff; }
   .update-bar .ub-update:hover{ filter:brightness(1.08); }
   .update-bar .ub-later{ background:var(--input-bg); color:var(--sub); }
   .update-bar .ub-later:hover{ color:var(--text); }
-  /* 更新说明列表：拉取成功才显示；bar 整体 nowrap，说明区放行换行 */
-  .update-bar .ub-info{ display:flex; flex-direction:column; gap:5px; white-space:normal; }
+  /* 更新说明列表：拉取成功才显示；bar 整体 nowrap，说明区允许收缩、每条单行省略 */
+  .update-bar .ub-info{ display:flex; flex-direction:column; gap:5px; white-space:normal; min-width:0; }
   .update-bar .ub-notes{
     margin:0; padding-left:18px; font-size:12px; font-weight:500; color:var(--sub);
-    max-width:300px; line-height:1.5;
+    max-width:280px; line-height:1.5;
   }
+  .update-bar .ub-notes li{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:260px; }
+  .update-bar .ub-notes li.ub-more{ list-style:none; margin-left:-18px; color:var(--text); }
   /* 节日/里程碑庆祝横幅（v1.17.0）：复用 update-bar 的样式语言与层级规范（插入其下 z-190、错位 top:70px 防重叠），
      按性能约定不用 backdrop-filter；动画仅 transform，reduced-motion 由全局规则禁用 */
   .fest-bar{
@@ -759,7 +764,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.17.0</span>
+            <span>版本 v1.17.1</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
           </div>
@@ -1821,24 +1826,32 @@ renderLogs();
 render();
 // 注册 Service Worker（PWA 离线缓存 + 新版本更新提醒）
 let swReg = null; // 提升作用域：手动"检查更新"也要用
-async function showUpdateBar(){
+const UPDATE_NOTES_MAX = 3; // 更新点最多显示 3 条，超出折叠为"等 N 项更新"
+async function showUpdateBar(demoNotes){
   $('updateBar').classList.add('show');
   // 拉取新版本的版本号与更新说明（version.json 不走 SW 缓存）。旧页面不可能内置未来版本的说明，
   // 必须在弹出时实时获取；离线/拉取失败则保持默认文案，不影响原有更新流程
   try{
-    const r = await fetch('./version.json?t=' + Date.now(), {cache:'no-store'});
-    if(!r.ok) throw new Error('http ' + r.status);
-    const info = await r.json();
+    const info = demoNotes ? {version:'v9.9.9', notes:demoNotes}
+      : await (async()=>{ const r = await fetch('./version.json?t=' + Date.now(), {cache:'no-store'});
+          if(!r.ok) throw new Error('http ' + r.status); return r.json(); })();
     if(info && info.version){
       $('updateTitle').textContent = '🎉 新版本 ' + info.version;
       const ul = $('updateNotes');
       if(Array.isArray(info.notes) && info.notes.length){
-        ul.innerHTML = info.notes.map(n => `<li>${escHtml(n)}</li>`).join('');
+        const items = info.notes.slice(0, UPDATE_NOTES_MAX).map(n => `<li>${escHtml(n)}</li>`);
+        if(info.notes.length > UPDATE_NOTES_MAX) items.push(`<li class="ub-more">等 ${info.notes.length} 项更新</li>`);
+        ul.innerHTML = items.join('');
         ul.hidden = false;
       }
     }
   }catch(e){ /* 降级：只显示"发现新版本"，按钮流程不受影响 */ }
 }
+// 测试钩子：?updatedemo=N 强制弹出更新条并渲染 N 条示例更新点（验证气泡布局/折叠，不影响真实更新流程）
+(function(){
+  const n = parseInt(new URLSearchParams(location.search).get('updatedemo'), 10);
+  if(n > 0) showUpdateBar(Array.from({length:Math.min(n,20)}, (_,i)=>'示例更新点：这是第 '+(i+1)+' 条用于验证气泡圆角边界的更新说明文案'));
+})();
 function notifyUpdate(){
   // 有等待中的新 SW 且当前页面受旧 SW 控制（说明是更新而非首次安装）才提示
   if(swReg && swReg.waiting && navigator.serviceWorker.controller) showUpdateBar();
