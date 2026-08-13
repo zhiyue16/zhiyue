@@ -55,14 +55,67 @@ var _hmt = _hmt || [];
     --shadow-pill:0 8px 30px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
     --shadow-pop:0 24px 70px rgba(0,0,0,.6), 0 4px 12px rgba(0,0,0,.4);
   }
-  /* 节日限定配色（v1.17.0）：只覆盖 accent/green 两个变量，完全复用 data-theme 体系。
-     优先级：html[data-fest] 与 html[data-theme] 同权重，靠书写顺序在浅色下生效；深色用双属性提权 */
-  html[data-fest="spring"]{ --accent:#d93025; --green:#e6a817; }            /* 春节：红金 */
-  html[data-theme="dark"][data-fest="spring"]{ --accent:#ff6b5e; --green:#f5c04a; }
-  html[data-fest="national"]{ --accent:#de1c31; --green:#f0a52a; }          /* 国庆：中国红 */
-  html[data-theme="dark"][data-fest="national"]{ --accent:#ff5c6c; --green:#f5b73f; }
-  html[data-fest="midautumn"]{ --accent:#e8890c; --green:#c9a227; }         /* 中秋：暖黄 */
-  html[data-theme="dark"][data-fest="midautumn"]{ --accent:#f5a83d; --green:#e3c04a; }
+  /* ========== 节日限定主题（v1.18.0 重做：一眼可感知的整页氛围） ==========
+     每个大节一套完整变量包：渐变背景 + 高对比文字 + 节日主色 + 深色半透明胶囊，
+     深浅色模式分别适配；关键按钮单独覆盖（金底深红字，保证 AA 对比度）。
+     春节=红金灯笼光晕 / 国庆=旗红星辉光晕 / 中秋=夜空明月光晕 */
+  /* --- 春节（红金） --- */
+  html[data-fest="spring"] body{
+    background:
+      radial-gradient(circle at 15% 85%, rgba(255,190,80,.28), transparent 45%),
+      linear-gradient(165deg, #6f0a16 0%, #b01e2c 52%, #d94a3a 100%);
+  }
+  html[data-theme="dark"][data-fest="spring"] body{
+    background:
+      radial-gradient(circle at 15% 85%, rgba(255,170,60,.2), transparent 45%),
+      linear-gradient(165deg, #38040b 0%, #7d1020 55%, #a51a28 100%);
+  }
+  html[data-fest="spring"]{
+    --text:#fff5e0; --sub:#f3d3a0; --accent:#ffd23f; --green:#ffd23f; --red:#ff8a7a;
+    --pill:rgba(70,6,14,.62); --pill-border:rgba(255,210,63,.3);
+    --hairline:rgba(255,235,190,.18); --input-bg:rgba(255,235,190,.13); --btn-sec:rgba(255,235,190,.2);
+  }
+  html[data-fest="spring"] .btn-green{ background:#ffd23f; color:#6f0a16; }
+  html[data-fest="spring"] .btn-primary{ background:#fff5e0; color:#a01626; }
+  /* --- 国庆（旗红星辉） --- */
+  html[data-fest="national"] body{
+    background:
+      radial-gradient(circle at 82% 12%, rgba(255,221,68,.32), transparent 38%),
+      linear-gradient(150deg, #8f0f1f 0%, #ce1526 55%, #e64a33 100%);
+  }
+  html[data-theme="dark"][data-fest="national"] body{
+    background:
+      radial-gradient(circle at 82% 12%, rgba(255,221,68,.22), transparent 38%),
+      linear-gradient(150deg, #420710 0%, #8f0f1f 55%, #b41825 100%);
+  }
+  html[data-fest="national"]{
+    --text:#fff6e8; --sub:#f5d6b0; --accent:#ffdd44; --green:#ffdd44; --red:#ff9a8a;
+    --pill:rgba(66,7,16,.62); --pill-border:rgba(255,221,68,.3);
+    --hairline:rgba(255,240,200,.18); --input-bg:rgba(255,240,200,.13); --btn-sec:rgba(255,240,200,.2);
+  }
+  html[data-fest="national"] .btn-green{ background:#ffdd44; color:#8f0f1f; }
+  html[data-fest="national"] .btn-primary{ background:#fff6e8; color:#b41825; }
+  /* --- 中秋（夜空明月） --- */
+  html[data-fest="midautumn"] body{
+    background:
+      radial-gradient(circle at 82% 14%, rgba(255,242,196,.85) 0%, rgba(255,242,196,.22) 9%, transparent 24%),
+      linear-gradient(165deg, #232f55 0%, #3a4a7d 55%, #655a8f 100%);
+  }
+  html[data-theme="dark"][data-fest="midautumn"] body{
+    background:
+      radial-gradient(circle at 82% 14%, rgba(255,242,196,.8) 0%, rgba(255,242,196,.2) 9%, transparent 24%),
+      linear-gradient(165deg, #0d1330 0%, #1f2a52 55%, #3d3566 100%);
+  }
+  html[data-fest="midautumn"]{
+    --text:#f6f1e2; --sub:#cdc6e0; --accent:#ffd873; --green:#ffd873; --red:#ff9a8a;
+    --pill:rgba(14,18,40,.62); --pill-border:rgba(255,216,115,.28);
+    --hairline:rgba(230,230,255,.16); --input-bg:rgba(230,230,255,.12); --btn-sec:rgba(230,230,255,.18);
+  }
+  html[data-fest="midautumn"] .btn-green{ background:#ffd873; color:#232f55; }
+  html[data-fest="midautumn"] .btn-primary{ background:#f6f1e2; color:#3a4a7d; }
+  /* 节日氛围下： pastel 光斑压暗避免串色；庆祝横幅改用节日胶囊底色保证文字可读 */
+  html[data-fest] .blob{ opacity:.22; }
+  html[data-fest] .fest-bar{ background:var(--pill); border-color:var(--pill-border); }
   body{
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
     background:var(--bg);
@@ -779,7 +832,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.17.2</span>
+            <span>版本 v1.18.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
           </div>
@@ -903,6 +956,7 @@ $('themeBtn').addEventListener('click', ()=>{
   themeBusy = true; setTimeout(()=>{ themeBusy = false; }, 460);
   cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
   LS.set('rft_cfg', cfg); applyTheme();
+  applyFest(); // 节日主题下切换明暗：重刷状态栏颜色（applyFest 幂等，非节日无副作用）
 });
 applyTheme();
 /* ================= 二级面板（设置 / 记录） ================= */
@@ -1710,10 +1764,14 @@ function todayFestival(){
   return null;
 }
 // 节日限定配色：命中带 theme 的大节就在 <html> 上挂 data-fest，节日过后自动摘除恢复
+const FEST_META = {spring:'#7d1020', national:'#a10e1e', midautumn:'#1c2547'}; // 移动端状态栏跟随节日氛围
 function applyFest(){
   const f = todayFestival();
   if(f && f.theme) document.documentElement.setAttribute('data-fest', f.theme);
   else document.documentElement.removeAttribute('data-fest');
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if(metaTheme) metaTheme.setAttribute('content',
+    (f && f.theme) ? FEST_META[f.theme] : (cfg.theme==='dark' ? '#0a0a0d' : '#007aff'));
 }
 let festBarTimer = null;
 function hideFestBar(){ $('festBar').classList.remove('show'); clearTimeout(festBarTimer); }
