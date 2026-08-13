@@ -547,7 +547,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.9.1</span>
+            <span>版本 v1.9.2</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -995,8 +995,8 @@ let sumMs = 0, sumChimes = 0;                          // 本轮小结快照（�
 let focusAccMs = 0, lastTick = Date.now();            // 专注分钟累计
 let roundBaseMins = 0;                                // 本轮开始时 stats.minutes 基线（用于算本轮已专注）
 const MINI_MS = 10000, NO_CHIME_TAIL = 5*60000;
-const ABANDON_CONFIRM_MS = 30000,   // 超过30秒放弃需弹确认
-      RECORD_MIN_MS = 5*60000;      // 满5分钟才据实计入统计
+const ABANDON_CONFIRM_MS = 30000,   // 超过30秒提前结束需弹确认
+      RECORD_MIN_MS = 5*60000;      // 仅用于弹窗文案区分（提示是否满5分钟）
 // 本轮到目前为止已实际专注的毫秒数（= 已 flush 进 stats 的分钟 + focusAccMs 零头）
 function elapsedFocusMs(){
   const now = Date.now();
@@ -1123,7 +1123,7 @@ function requestAbandon(){
     abandonWasPaused = paused;
     if(!paused){
       const now = Date.now();
-      leftMs = (mode==='rest') ? (endAt-now) : (endAt-now);
+      leftMs = endAt - now; // mode 只会是 focus/mini（rest 已在函数开头拦截）
       if(mode==='mini') miniLeft = miniEndAt - now;
       chimeLeft = chimeAt ? chimeAt - now : null;
       paused = true; render();
@@ -1357,6 +1357,8 @@ document.querySelectorAll('button').forEach(b=>b.addEventListener('click', funct
 document.addEventListener('keydown', e=>{
   if(e.code==='Escape'){ if($('goalMask').classList.contains('show')) closeGoal(); else if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
   if(e.code!=='Space' || e.repeat) return;
+  // 弹窗（放弃确认/目标设置）打开时不响应空格：弹窗已冻结计时，空格暂停会与之冲突
+  if($('abandonMask').classList.contains('show') || $('goalMask').classList.contains('show')) return;
   const tag = (document.activeElement && document.activeElement.tagName) || '';
   if(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
   e.preventDefault();
