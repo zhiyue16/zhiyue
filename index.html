@@ -124,10 +124,11 @@ var _hmt = _hmt || [];
   html[data-fest="spring"] .deco-spring,
   html[data-fest="national"] .deco-national,
   html[data-fest="midautumn"] .deco-midautumn{ display:block; }
-  /* --- 春节：灯笼（挂钩为轴轻摇） --- */
+  /* --- 春节：灯笼（挂钩为轴轻摇）。位置与顶部药丸配套：左灯笼挂在药丸左侧（药丸 margin-left:96px 留位），
+     右灯笼在药丸右缘之外（药丸宽约 300px，left:414px）；药丸形态变化时此处必须同步校对 --- */
   .lantern{ top:6px; transform-origin:50% 0; animation:lanternSwing 3.6s ease-in-out infinite alternate; }
-  .lantern-l{ left:calc(50% - 566px); }
-  .lantern-r{ left:calc(50% + 512px); animation-delay:-1.8s; }
+  .lantern-l{ left:26px; }
+  .lantern-r{ left:414px; animation-delay:-1.8s; }
   @keyframes lanternSwing{ from{ transform:rotate(-2.6deg); } to{ transform:rotate(2.6deg); } }
   @media (max-width:1240px){ .lantern{ display:none; } } /* 窄屏标题栏两侧没有空间，灯笼收起 */
   /* --- 春节：竖排对联（红底金字，窄屏隐藏） --- */
@@ -211,12 +212,13 @@ var _hmt = _hmt || [];
   .blob2{ width:560px;height:560px; background:radial-gradient(circle,#ffc2cf,#f5c6f7); bottom:-220px; right:-140px; opacity:.5; }
   .blob3{ width:420px;height:420px; background:radial-gradient(circle,#a9ecd0,#a8e6f5); top:45%; left:60%; opacity:.4; }
   html[data-theme="dark"] .blob{ opacity:.17; }
-  /* ---------- 顶部胶囊导航 ---------- */
+  /* ---------- 顶部药丸（v1.22.0 桌面布局：左对齐紧凑药丸，宽度自适应内容，不再横贯屏幕。
+     margin-left:96px 是给春节灯笼留的悬挂位，药丸位置变化时灯笼坐标需同步校对（见 .lantern-l/.lantern-r） ---------- */
   .topbar{
     position:relative; z-index:2;
-    width:min(960px, calc(100vw - 48px));
-    margin:22px auto 0;
-    display:flex; align-items:center; justify-content:space-between;
+    width:fit-content; max-width:calc(100vw - 48px);
+    margin:22px 0 0 96px;
+    display:flex; align-items:center; gap:14px;
     padding:11px 12px 11px 22px;
     background:var(--pill); border:1px solid var(--pill-border); border-radius:100px;
     backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
@@ -572,13 +574,13 @@ var _hmt = _hmt || [];
   html[data-theme="dark"] .scrim{ background:rgba(0,0,0,.35); }
   .scrim.show{ opacity:1; pointer-events:auto; }
   .panel{
-    position:fixed; top:86px; right:max(24px, calc((100vw - 960px)/2)); z-index:30;
+    position:fixed; top:86px; left:24px; z-index:30; /* v1.22.0 改左侧滑出：与顶部药丸同侧，计时圆环始终完整可见 */
     width:350px; max-height:calc(100vh - 116px);
     display:flex; flex-direction:column;
     background:var(--pill); border:1px solid var(--pill-border); border-radius:22px;
     backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
     box-shadow:var(--shadow-pop);
-    opacity:0; transform:translateY(-8px) scale(.97); transform-origin:top right;
+    opacity:0; transform:translateX(-16px); transform-origin:top left;
     pointer-events:none; transition:opacity .22s, transform .22s;
   }
   .panel.show{ opacity:1; transform:none; pointer-events:auto; }
@@ -995,7 +997,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.21.0</span>
+            <span>版本 v1.22.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
