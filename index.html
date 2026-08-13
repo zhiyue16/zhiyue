@@ -55,6 +55,14 @@ var _hmt = _hmt || [];
     --shadow-pill:0 8px 30px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
     --shadow-pop:0 24px 70px rgba(0,0,0,.6), 0 4px 12px rgba(0,0,0,.4);
   }
+  /* 节日限定配色（v1.17.0）：只覆盖 accent/green 两个变量，完全复用 data-theme 体系。
+     优先级：html[data-fest] 与 html[data-theme] 同权重，靠书写顺序在浅色下生效；深色用双属性提权 */
+  html[data-fest="spring"]{ --accent:#d93025; --green:#e6a817; }            /* 春节：红金 */
+  html[data-theme="dark"][data-fest="spring"]{ --accent:#ff6b5e; --green:#f5c04a; }
+  html[data-fest="national"]{ --accent:#de1c31; --green:#f0a52a; }          /* 国庆：中国红 */
+  html[data-theme="dark"][data-fest="national"]{ --accent:#ff5c6c; --green:#f5b73f; }
+  html[data-fest="midautumn"]{ --accent:#e8890c; --green:#c9a227; }         /* 中秋：暖黄 */
+  html[data-theme="dark"][data-fest="midautumn"]{ --accent:#f5a83d; --green:#e3c04a; }
   body{
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
     background:var(--bg);
@@ -199,6 +207,17 @@ var _hmt = _hmt || [];
     margin:0; padding-left:18px; font-size:12px; font-weight:500; color:var(--sub);
     max-width:300px; line-height:1.5;
   }
+  /* 节日/里程碑庆祝横幅（v1.17.0）：复用 update-bar 的样式语言与层级规范（插入其下 z-190、错位 top:70px 防重叠），
+     按性能约定不用 backdrop-filter；动画仅 transform，reduced-motion 由全局规则禁用 */
+  .fest-bar{
+    position:fixed; top:70px; left:50%; z-index:190; cursor:pointer;
+    padding:12px 22px; max-width:min(480px, calc(100vw - 40px));
+    background:var(--bg); border:1px solid var(--hairline); border-radius:18px;
+    box-shadow:var(--shadow-pop); font-size:13.5px; font-weight:600; line-height:1.7; text-align:center;
+    transform:translate(-50%,-180%); transition:transform .4s cubic-bezier(.2,.8,.3,1.1);
+  }
+  .fest-bar.show{ transform:translate(-50%,0); }
+  .fest-bar .fb-line + .fb-line{ margin-top:4px; padding-top:4px; border-top:1px solid var(--hairline); }
   /* 放弃确认弹窗 */
   .abandon-mask{
     position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
@@ -629,6 +648,10 @@ var _hmt = _hmt || [];
     <button type="button" class="ub-btn ub-update" id="updateNow">立即更新</button>
     <button type="button" class="ub-btn ub-later" id="updateLater">稍后</button>
   </div>
+  <!-- 节日/里程碑庆祝横幅：点击或 8 秒自动收起，节日+里程碑合并为一条展示 -->
+  <div class="fest-bar" id="festBar" role="status">
+    <div id="festLines"></div>
+  </div>
   <!-- 提前结束确认弹窗（三选一：保存 / 放弃 / 取消） -->
   <div class="abandon-mask" id="abandonMask" role="dialog" aria-modal="true" aria-labelledby="abandonTitleText">
     <div class="abandon-box">
@@ -736,7 +759,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.16.0</span>
+            <span>版本 v1.17.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
           </div>
@@ -1115,6 +1138,8 @@ function checkDayRollover(){
   roundBaseMins = 0;
   LS.set('rft_stats', stats);
   if(hadActivity) addLog('info', '已跨天：昨日数据归入统计，今日重新开始');
+  applyFest();         // 新的一天可能是节日：刷新限定配色
+  checkCelebrations(); // 并检查新一天的节日横幅
 }
 function saveStats(){
   checkDayRollover();
@@ -1245,7 +1270,9 @@ function scheduleChime(now, remainingMs){
   else chimeAt = null; // 最后 5 分钟内不再安排
 }
 function flushFocusMinutes(){
-  while(focusAccMs >= 60000){ focusAccMs -= 60000; stats.minutes++; saveStats(); }
+  let did = false;
+  while(focusAccMs >= 60000){ focusAccMs -= 60000; stats.minutes++; saveStats(); did = true; }
+  if(did) checkCelebrations(); // 分钟进账后检查"累计 100 小时"里程碑是否达成
 }
 function startFocus(){
   readSettings();
@@ -1631,6 +1658,84 @@ $('goalSave').addEventListener('click', ()=>{
   closeGoal(); renderGoal();
   addLog('info', `每日目标设为 ${goalDraft} 个番茄`);
 });
+/* ================= 节日庆祝 & 个人里程碑（v1.17.0） ================= */
+/* 节日表：公历节日按 MM-DD 固定；农历节日不用第三方库，手动维护 2026-2030 公历日期，
+   每年底顺手把下一年的日期补进对应 dates 数组即可。theme 值对应 CSS 里 html[data-fest="..."] 的限定配色 */
+const SOLAR_FESTIVALS = {
+  '01-01': {name:'元旦',   wish:'新岁启新程，愿你的每一次专注都有收获'},
+  '02-14': {name:'情人节', wish:'愿爱与被爱都如期而至'},
+  '05-01': {name:'劳动节', wish:'致敬每一份认真，也别忘了好好休息'},
+  '06-01': {name:'儿童节', wish:'愿你永远保有好奇与热忱'},
+  '10-01': {name:'国庆节', wish:'山河远阔，国泰民安，假期愉快', theme:'national'},
+  '12-25': {name:'圣诞节', wish:'圣诞快乐，愿温暖与专注常伴'}
+};
+const LUNAR_FESTIVALS = {
+  '春节':  {wish:'新春大吉，愿新的一年专注有所成、休息有所乐', theme:'spring',    dates:['2026-02-17','2027-02-06','2028-01-26','2029-02-13','2030-02-03']},
+  '元宵':  {wish:'花好月圆，愿灯火可亲、诸事圆满',                              dates:['2026-03-03','2027-02-20','2028-02-09','2029-02-27','2030-02-17']},
+  '端午':  {wish:'端午安康，愿生活有滋有味',                                    dates:['2026-06-19','2027-06-09','2028-05-28','2029-06-16','2030-06-05']},
+  '七夕':  {wish:'愿有情人终成眷属，愿你不负热爱',                              dates:['2026-08-19','2027-08-08','2028-08-26','2029-08-16','2030-08-05']},
+  '中秋':  {wish:'祝你团圆安康，专注之余记得吃月饼', theme:'midautumn',          dates:['2026-09-25','2027-09-15','2028-10-03','2029-09-22','2030-09-12']},
+  '重阳':  {wish:'登高望远，愿步步皆稳、岁岁安康',                              dates:['2026-10-18','2027-10-08','2028-10-26','2029-10-16','2030-10-05']}
+};
+// 测试钩子：URL 加 ?festdate=YYYY-MM-DD 模拟"今天是某天"，仅影响节日/主题/里程碑判定，不动计时
+const FEST_DEBUG_DATE = new URLSearchParams(location.search).get('festdate');
+const festToday = () => FEST_DEBUG_DATE || todayKey();
+function todayFestival(){
+  const tk = festToday(), md = tk.slice(5);
+  if(SOLAR_FESTIVALS[md]) return SOLAR_FESTIVALS[md];
+  for(const name in LUNAR_FESTIVALS){
+    const f = LUNAR_FESTIVALS[name];
+    if(f.dates.includes(tk)) return Object.assign({name}, f);
+  }
+  return null;
+}
+// 节日限定配色：命中带 theme 的大节就在 <html> 上挂 data-fest，节日过后自动摘除恢复
+function applyFest(){
+  const f = todayFestival();
+  if(f && f.theme) document.documentElement.setAttribute('data-fest', f.theme);
+  else document.documentElement.removeAttribute('data-fest');
+}
+let festBarTimer = null;
+function hideFestBar(){ $('festBar').classList.remove('show'); clearTimeout(festBarTimer); }
+function showFestBar(lines){
+  $('festLines').innerHTML = lines.map(l => `<div class="fb-line">${escHtml(l)}</div>`).join('');
+  $('festBar').classList.add('show');
+  clearTimeout(festBarTimer);
+  festBarTimer = setTimeout(hideFestBar, 8000); // 8 秒自动收起
+}
+$('festBar').addEventListener('click', hideFestBar);
+const parseKey = k => { const p = k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }; // 本地时区解析 YYYY-MM-DD
+/* 检查并弹出庆祝横幅：节日（每天一次）+ 里程碑（每个只一次），命中多条合并成一条横幅 */
+function checkCelebrations(){
+  const tk = festToday();
+  const lines = [];
+  const f = todayFestival();
+  if(f && LS.get('rft_fest_shown','') !== tk){
+    lines.push(`🎊 今天是${f.name}，${f.wish}`);
+    LS.set('rft_fest_shown', tk);
+  }
+  const ms = LS.get('rft_milestones', {});
+  let msDirty = false;
+  if(!ms.year1){ // 使用满一周年：以历史归档里最早的日期推算
+    const days = Object.keys(history).sort();
+    if(days.length && parseKey(tk) - parseKey(days[0]) >= 365*86400000){
+      lines.push('🎉 你使用本计时器已满一周年，感谢一路相伴');
+      ms.year1 = true; msDirty = true;
+    }
+  }
+  if(!ms.hours100){ // 累计专注满 100 小时
+    let tot = 0;
+    for(const k in history) tot += history[k].minutes || 0;
+    if(tot >= 6000){
+      lines.push('🏆 累计专注满 100 小时，了不起的坚持');
+      ms.hours100 = true; msDirty = true;
+    }
+  }
+  if(msDirty) LS.set('rft_milestones', ms);
+  if(lines.length) showFestBar(lines);
+}
+applyFest();          // 启动即应用节日限定配色（非节日则摘除）
+checkCelebrations();  // 启动即检查横幅
 /* ================= 专注时长弹窗（仅 idle 可开） ================= */
 function openFocusDur(){
   if(mode!=='idle') return; // 计时中点击无效
@@ -1666,7 +1771,8 @@ $('focusDurMask').addEventListener('click', e=>{ if(e.target===e.currentTarget) 
 $('exportData').addEventListener('click', ()=>{
   const data = {app:'random-focus-timer', version:'v1.15.0', exportedAt:new Date().toISOString(),
     rft_cfg:LS.get('rft_cfg',null), rft_stats:LS.get('rft_stats',null),
-    rft_history:LS.get('rft_history',{}), rft_logs:LS.get('rft_logs',[]), rft_schema:LS.get('rft_schema',SCHEMA_VERSION)};
+    rft_history:LS.get('rft_history',{}), rft_logs:LS.get('rft_logs',[]), rft_schema:LS.get('rft_schema',SCHEMA_VERSION),
+    rft_fest_shown:LS.get('rft_fest_shown',null), rft_milestones:LS.get('rft_milestones',null)};
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)], {type:'application/json'}));
   a.download = 'focus-timer-backup-' + todayKey() + '.json';
@@ -1682,7 +1788,7 @@ $('importFile').addEventListener('change', e=>{
     try{
       const d = JSON.parse(rd.result);
       if(!d || typeof d!=='object' || d.app!=='random-focus-timer') throw new Error('bad file');
-      ['rft_cfg','rft_stats','rft_history','rft_logs','rft_schema'].forEach(k=>{ if(d[k]!=null) LS.set(k, d[k]); });
+      ['rft_cfg','rft_stats','rft_history','rft_logs','rft_schema','rft_fest_shown','rft_milestones'].forEach(k=>{ if(d[k]!=null) LS.set(k, d[k]); });
       location.reload();
     }catch(err){ alert('导入失败：文件格式不正确'); }
   };
