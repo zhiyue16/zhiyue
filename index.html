@@ -365,6 +365,10 @@ var _hmt = _hmt || [];
     transform:translate(-50%,0);
     transition:transform .4s cubic-bezier(.2,.8,.3,1.1), visibility 0s;
   }
+  /* 避让 updateBar（v1.20.0）：更新提示条显示期间横幅下移，防止顶部叠放。
+     弹窗层级表（从低到高，新组件按此插入）：
+     deco 装饰(0) → stats-bar(2) → scrim(20) → panel(30) → abandon-mask(50) → goal-mask(55) → fd-mask(58) → fest-bar(190) → update-bar(200) */
+  .fest-bar.lower{ top:170px; }
   .fest-bar .fb-line + .fb-line{ margin-top:4px; padding-top:4px; border-top:1px solid var(--hairline); }
   /* 放弃确认弹窗 */
   .abandon-mask{
@@ -966,9 +970,11 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.19.0</span>
+            <span>版本 v1.20.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
+            <span class="about-sep">·</span>
+            <span id="lunarCover"></span>
           </div>
           <div class="about-update">
             <button type="button" class="au-btn" id="exportData">导出数据</button>
@@ -1518,6 +1524,7 @@ function bumpRound(){
   const was = stats.rounds;
   stats.rounds++; saveStats();
   if(was < goal && stats.rounds >= goal) playGoalDone(); // 恰好跨过目标线才响，避免每次完成都重复
+  checkCelebrations(); // 轮次进账后即时检查"累计 50 个番茄"等里程碑（v1.20.0）
 }
 function focusComplete(){
   flushFocusMinutes();
@@ -1886,21 +1893,40 @@ const LUNAR_FESTIVALS = {
   '重阳':  {wish:'登高望远，愿步步皆稳、岁岁安康',                              dates:['2026-10-18','2027-10-08','2028-10-26','2029-10-16','2030-10-05']}
 };
 // 测试钩子：URL 加 ?festdate=YYYY-MM-DD 模拟"今天是某天"，仅影响节日/主题/里程碑判定，不动计时
+// 测试钩子2：?festforce=中秋,国庆 强制命中指定节日（撞节优先级测试用）
 const FEST_DEBUG_DATE = new URLSearchParams(location.search).get('festdate');
+const FEST_FORCE = new URLSearchParams(location.search).get('festforce');
 const festToday = () => FEST_DEBUG_DATE || todayKey();
-function todayFestival(){
-  const tk = festToday(), md = tk.slice(5);
-  if(SOLAR_FESTIVALS[md]) return SOLAR_FESTIVALS[md];
-  for(const name in LUNAR_FESTIVALS){
-    const f = LUNAR_FESTIVALS[name];
-    if(f.dates.includes(tk)) return Object.assign({name}, f);
+/* 农历表覆盖年份（自动从 dates 推算）：当前年份超出覆盖范围说明日期表过期——
+   控制台告警提醒补充，并在设置-关于区常驻显示覆盖年份（v1.20.0） */
+const LUNAR_MAX_YEAR = Math.max(...Object.values(LUNAR_FESTIVALS).flatMap(f => f.dates.map(d => +d.slice(0,4))));
+if(new Date().getFullYear() > LUNAR_MAX_YEAR)
+  console.warn('农历节日数据已过期，请补充日期表（当前覆盖至 ' + LUNAR_MAX_YEAR + ' 年）');
+/* 返回当天命中的节日数组（0~2 个）。撞节主题优先级（v1.20.0，勿随意改动）：
+   带 theme 的农历大节 > 带 theme 的公历节日 > 无 theme 节日；
+   主题只应用优先级最高者，但所有命中节日的祝福都合并进同一条横幅 */
+function todayFestivals(){
+  const out = [];
+  if(FEST_FORCE){
+    FEST_FORCE.split(',').forEach(n=>{
+      if(LUNAR_FESTIVALS[n]) out.push(Object.assign({name:n, lunar:true}, LUNAR_FESTIVALS[n]));
+      else { const md = Object.keys(SOLAR_FESTIVALS).find(k => { const nm = SOLAR_FESTIVALS[k].name; return nm===n || nm===n+'节'; }); if(md) out.push(SOLAR_FESTIVALS[md]); }
+    });
+  }else{
+    const tk = festToday(), md = tk.slice(5);
+    for(const name in LUNAR_FESTIVALS){
+      const f = LUNAR_FESTIVALS[name];
+      if(f.dates.includes(tk)) out.push(Object.assign({name, lunar:true}, f));
+    }
+    if(SOLAR_FESTIVALS[md]) out.push(SOLAR_FESTIVALS[md]);
   }
-  return null;
+  out.sort((a,b) => ((b.theme?2:0)+(b.lunar?1:0)) - ((a.theme?2:0)+(a.lunar?1:0)));
+  return out;
 }
 // 节日限定配色：命中带 theme 的大节就在 <html> 上挂 data-fest，节日过后自动摘除恢复
 const FEST_META = {spring:'#7d1020', national:'#a10e1e', midautumn:'#1c2547'}; // 移动端状态栏跟随节日氛围
 function applyFest(){
-  const f = todayFestival();
+  const f = todayFestivals()[0];
   if(f && f.theme) document.documentElement.setAttribute('data-fest', f.theme);
   else document.documentElement.removeAttribute('data-fest');
   const metaTheme = document.querySelector('meta[name="theme-color"]');
@@ -1909,25 +1935,49 @@ function applyFest(){
 }
 let festBarTimer = null;
 function hideFestBar(){ $('festBar').classList.remove('show'); clearTimeout(festBarTimer); }
+/* 避让 updateBar（v1.20.0）：更新提示条显示期间节日横幅下移，防止两条顶部叠放互相遮挡 */
+function syncFestBarPos(){ $('festBar').classList.toggle('lower', $('updateBar').classList.contains('show')); }
 function showFestBar(lines){
   $('festLines').innerHTML = lines.map(l => `<div class="fb-line">${escHtml(l)}</div>`).join('');
   $('festBar').classList.add('show');
+  syncFestBarPos();
   clearTimeout(festBarTimer);
   festBarTimer = setTimeout(hideFestBar, 8000); // 8 秒自动收起
 }
 $('festBar').addEventListener('click', hideFestBar);
 const parseKey = k => { const p = k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }; // 本地时区解析 YYYY-MM-DD
-/* 检查并弹出庆祝横幅：节日（每天一次）+ 里程碑（每个只一次），命中多条合并成一条横幅 */
+/* 检查并弹出庆祝横幅：节日（每天一次）+ 里程碑（每个只一次），命中多条合并成一条横幅。
+   调用时机：启动、跨天（checkDayRollover）、分钟冲账（flushFocusMinutes）、轮次进账（bumpRound），
+   保证专注中途达成里程碑也能即时触发 */
 function checkCelebrations(){
   const tk = festToday();
   const lines = [];
-  const f = todayFestival();
-  if(f && LS.get('rft_fest_shown','') !== tk){
-    lines.push(`🎊 今天是${f.name}，${f.wish}`);
+  const fests = todayFestivals();
+  if(fests.length && LS.get('rft_fest_shown','') !== tk){
+    fests.forEach(f => lines.push(`🎊 今天是${f.name}，${f.wish}`)); // 撞节时多条祝福合并展示
     LS.set('rft_fest_shown', tk);
   }
   const ms = LS.get('rft_milestones', {});
   let msDirty = false;
+  let totM = 0, totR = 0;
+  for(const k in history){ totM += history[k].minutes || 0; totR += history[k].rounds || 0; }
+  /* 时长类里程碑（10/50/100 小时）：一次只庆祝新达成的最高档，已达成的低档一并标记——
+     老用户升级后不会连续炸出三条横幅 */
+  const HOUR_MS = [
+    ['hours10',  600,  '累计专注满 10 小时，好习惯正在养成'],
+    ['hours50',  3000, '累计专注满 50 小时，坚持就是实力'],
+    ['hours100', 6000, '累计专注满 100 小时，了不起的坚持']
+  ];
+  const hit = HOUR_MS.filter(([k,th]) => totM >= th);
+  const newHits = hit.filter(([k]) => !ms[k]);
+  if(newHits.length){
+    lines.push('🏆 ' + newHits[newHits.length-1][2]);
+    hit.forEach(([k]) => { if(!ms[k]){ ms[k] = true; msDirty = true; } });
+  }
+  if(!ms.rounds50 && totR >= 50){ // 累计 50 个番茄
+    lines.push('🍅 累计完成 50 个番茄，行动力满格');
+    ms.rounds50 = true; msDirty = true;
+  }
   if(!ms.year1){ // 使用满一周年：以历史归档里最早的日期推算
     const days = Object.keys(history).sort();
     if(days.length && parseKey(tk) - parseKey(days[0]) >= 365*86400000){
@@ -1935,17 +1985,10 @@ function checkCelebrations(){
       ms.year1 = true; msDirty = true;
     }
   }
-  if(!ms.hours100){ // 累计专注满 100 小时
-    let tot = 0;
-    for(const k in history) tot += history[k].minutes || 0;
-    if(tot >= 6000){
-      lines.push('🏆 累计专注满 100 小时，了不起的坚持');
-      ms.hours100 = true; msDirty = true;
-    }
-  }
   if(msDirty) LS.set('rft_milestones', ms);
   if(lines.length) showFestBar(lines);
 }
+$('lunarCover').textContent = '农历节日数据覆盖至 ' + LUNAR_MAX_YEAR + ' 年';
 applyFest();          // 启动即应用节日限定配色（非节日则摘除）
 checkCelebrations();  // 启动即检查横幅
 /* ================= 专注时长弹窗（仅 idle 可开） ================= */
@@ -2036,6 +2079,7 @@ let swReg = null; // 提升作用域：手动"检查更新"也要用
 const UPDATE_NOTES_MAX = 3; // 更新点最多显示 3 条，超出折叠为"等 N 项更新"
 async function showUpdateBar(demoNotes){
   $('updateBar').classList.add('show');
+  syncFestBarPos(); // 更新条出现 → 节日横幅下移避让（无横幅时无副作用）
   // 拉取新版本的版本号与更新说明（version.json 不走 SW 缓存）。旧页面不可能内置未来版本的说明，
   // 必须在弹出时实时获取；离线/拉取失败则保持默认文案，不影响原有更新流程
   try{
@@ -2072,7 +2116,7 @@ if('serviceWorker' in navigator){
   $('updateNow').addEventListener('click', ()=>{
     if(swReg && swReg.waiting) swReg.waiting.postMessage({type:'SKIP_WAITING'});
   });
-  $('updateLater').addEventListener('click', ()=>$('updateBar').classList.remove('show'));
+  $('updateLater').addEventListener('click', ()=>{ $('updateBar').classList.remove('show'); syncFestBarPos(); });
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').then(reg=>{
       swReg = reg;
