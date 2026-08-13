@@ -116,6 +116,81 @@ var _hmt = _hmt || [];
   /* 节日氛围下： pastel 光斑压暗避免串色；庆祝横幅改用节日胶囊底色保证文字可读 */
   html[data-fest] .blob{ opacity:.22; }
   html[data-fest] .fest-bar{ background:var(--pill); border-color:var(--pill-border); }
+  /* ========== 节日装饰元素（v1.19.0）：默认隐藏，对应 data-fest 激活才显示。
+     全部 position:fixed + pointer-events:none + z-index:0（氛围光斑同层，低于 main:1/topbar:2）。
+     动画仅 transform/opacity；prefers-reduced-motion 由全局规则静止动画、保留静态装饰 ========== */
+  .deco{ display:none; }
+  .deco > *{ position:fixed; z-index:0; pointer-events:none; }
+  html[data-fest="spring"] .deco-spring,
+  html[data-fest="national"] .deco-national,
+  html[data-fest="midautumn"] .deco-midautumn{ display:block; }
+  /* --- 春节：灯笼（挂钩为轴轻摇） --- */
+  .lantern{ top:6px; transform-origin:50% 0; animation:lanternSwing 3.6s ease-in-out infinite alternate; }
+  .lantern-l{ left:calc(50% - 566px); }
+  .lantern-r{ left:calc(50% + 512px); animation-delay:-1.8s; }
+  @keyframes lanternSwing{ from{ transform:rotate(-2.6deg); } to{ transform:rotate(2.6deg); } }
+  @media (max-width:1240px){ .lantern{ display:none; } } /* 窄屏标题栏两侧没有空间，灯笼收起 */
+  /* --- 春节：竖排对联（红底金字，窄屏隐藏） --- */
+  .couplet{
+    top:50%; transform:translateY(-50%);
+    writing-mode:vertical-rl; letter-spacing:14px; padding:24px 11px 24px 12px;
+    font-size:21px; font-weight:700; color:#ffd23f; text-shadow:0 1px 4px rgba(0,0,0,.3);
+    background:linear-gradient(180deg,#c2212e,#9c1420); border:2px solid rgba(255,210,63,.7);
+    border-radius:8px; box-shadow:0 8px 28px rgba(0,0,0,.28);
+  }
+  .couplet-l{ left:26px; }
+  .couplet-r{ right:26px; }
+  @media (max-width:1100px){ .couplet{ display:none; } } /* 窄屏（手机）自动隐藏 */
+  /* --- 春节：金色祥云光斑（静态模糊光斑，与既有 blob 同手法） --- */
+  .deco-cloud{ border-radius:50%; filter:blur(70px); background:radial-gradient(circle, rgba(255,210,63,.17), transparent 70%); }
+  .cloud-a{ width:400px; height:280px; top:16%; left:5%; }
+  .cloud-b{ width:320px; height:230px; bottom:10%; right:7%; }
+  /* --- 国庆：光芒射线（底部中心发散的半透明金色光束，庄重大气） --- */
+  .deco-rays{
+    inset:0;
+    background:repeating-conic-gradient(from 180deg at 50% 118%, rgba(255,221,68,.075) 0deg 3.5deg, transparent 3.5deg 13deg);
+  }
+  html[data-theme="dark"][data-fest="national"] .deco-rays{
+    background:repeating-conic-gradient(from 180deg at 50% 118%, rgba(255,221,68,.095) 0deg 3.5deg, transparent 3.5deg 13deg);
+  }
+  /* --- 国庆：五角星（错落排布，2 颗 opacity 呼吸闪烁） --- */
+  .star.s1{ top:96px; left:9%; }
+  .star.s2{ top:152px; left:23%; }
+  .star.s3{ top:78px; right:11%; }
+  .star.s4{ top:168px; right:27%; }
+  .twinkle{ animation:twinkle 2.6s ease-in-out infinite; }
+  .twinkle2{ animation:twinkle 3.4s ease-in-out infinite .9s; }
+  @keyframes twinkle{ 0%,100%{ opacity:.35; } 50%{ opacity:1; } }
+  /* --- 中秋：圆月（右上，柔和月晕） --- */
+  .moon{
+    top:58px; right:9%; width:92px; height:92px; border-radius:50%;
+    background:radial-gradient(circle at 38% 34%, #fff9e4, #ffeaa6 68%, #f0cf72);
+    box-shadow:0 0 46px 24px rgba(255,242,196,.32), 0 0 120px 60px rgba(255,242,196,.14);
+  }
+  .moon::before,.moon::after{ content:''; position:absolute; border-radius:50%; background:rgba(222,188,110,.4); }
+  .moon::before{ width:20px; height:20px; top:26px; left:22px; }
+  .moon::after{ width:13px; height:13px; top:52px; left:50px; }
+  html[data-theme="dark"][data-fest="midautumn"] .moon{
+    box-shadow:0 0 56px 28px rgba(255,242,196,.4), 0 0 140px 70px rgba(255,242,196,.18);
+  }
+  /* --- 中秋：桂花枝剪影（左下，低透明柔边） --- */
+  .osmanthus{ left:-8px; bottom:-6px; opacity:.3; filter:blur(.8px); }
+  html[data-theme="dark"][data-fest="midautumn"] .osmanthus{ opacity:.38; }
+  /* --- 中秋：飘落桂花花瓣（translate 下落 + 摆动旋转，慢速少量） --- */
+  .petal{
+    top:0; width:9px; height:13px; border-radius:62% 38% 60% 40%;
+    background:#ffd873; opacity:0;
+  }
+  .petal.p1{ left:68%; animation:petalFall 15s linear infinite; }
+  .petal.p2{ left:79%; animation:petalFall 19s linear infinite 6s; }
+  .petal.p3{ left:88%; animation:petalFall 23s linear infinite 11s; }
+  @keyframes petalFall{
+    0%{ transform:translate3d(0,-8vh,0) rotate(0deg); opacity:0; }
+    10%{ opacity:.75; }
+    50%{ transform:translate3d(2.5vw,48vh,0) rotate(170deg); }
+    90%{ opacity:.55; }
+    100%{ transform:translate3d(-1.5vw,104vh,0) rotate(330deg); opacity:0; }
+  }
   body{
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
     background:var(--bg);
@@ -630,6 +705,65 @@ var _hmt = _hmt || [];
 </head>
 <body>
   <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
+  <!-- ================= 节日装饰（v1.19.0）：纯 CSS/SVG 绘制，仅在对应 data-fest 激活时显示，
+       一律 pointer-events:none、z-index 0（与氛围光斑同层，不遮挡任何交互） ================= -->
+  <!-- 春节：灯笼 ×2 + 竖排对联 + 金色祥云光斑 -->
+  <div class="deco deco-spring" aria-hidden="true">
+    <div class="lantern lantern-l"><svg viewBox="0 0 60 104" width="54" height="94">
+      <line x1="30" y1="0" x2="30" y2="7" stroke="#ffd23f" stroke-width="2"/>
+      <rect x="22" y="7" width="16" height="6" rx="2.5" fill="#ffd23f"/>
+      <ellipse cx="30" cy="42" rx="24" ry="30" fill="#d4242f" stroke="#ffd23f" stroke-width="1.6"/>
+      <path d="M30 13 v58 M18 16 q-7 26 0 52 M42 16 q7 26 0 52" stroke="#ffd23f" stroke-width="1.2" fill="none" opacity=".85"/>
+      <ellipse cx="22" cy="30" rx="5.5" ry="11" fill="#fff" opacity=".22"/>
+      <rect x="23" y="68" width="14" height="6" rx="2.5" fill="#ffd23f"/>
+      <path d="M25 74 l-2.5 16 M30 74 v18 M35 74 l2.5 16" stroke="#ffd23f" stroke-width="1.6" fill="none"/>
+      <circle cx="30" cy="95" r="2.6" fill="#ffd23f"/>
+    </svg></div>
+    <div class="lantern lantern-r"><svg viewBox="0 0 60 104" width="54" height="94">
+      <line x1="30" y1="0" x2="30" y2="7" stroke="#ffd23f" stroke-width="2"/>
+      <rect x="22" y="7" width="16" height="6" rx="2.5" fill="#ffd23f"/>
+      <ellipse cx="30" cy="42" rx="24" ry="30" fill="#d4242f" stroke="#ffd23f" stroke-width="1.6"/>
+      <path d="M30 13 v58 M18 16 q-7 26 0 52 M42 16 q7 26 0 52" stroke="#ffd23f" stroke-width="1.2" fill="none" opacity=".85"/>
+      <ellipse cx="22" cy="30" rx="5.5" ry="11" fill="#fff" opacity=".22"/>
+      <rect x="23" y="68" width="14" height="6" rx="2.5" fill="#ffd23f"/>
+      <path d="M25 74 l-2.5 16 M30 74 v18 M35 74 l2.5 16" stroke="#ffd23f" stroke-width="1.6" fill="none"/>
+      <circle cx="30" cy="95" r="2.6" fill="#ffd23f"/>
+    </svg></div>
+    <div class="couplet couplet-l">专注生百福</div>
+    <div class="couplet couplet-r">心静万事兴</div>
+    <div class="deco-cloud cloud-a"></div>
+    <div class="deco-cloud cloud-b"></div>
+  </div>
+  <!-- 国庆：金色五角星 ×4（2 颗呼吸闪烁）+ 底部发散的光芒射线 -->
+  <div class="deco deco-national" aria-hidden="true">
+    <div class="deco-rays"></div>
+    <svg class="star s1" viewBox="0 0 24 24" width="26" height="26"><path fill="#ffdd44" d="M12 2 L14.35 8.76 L21.51 8.91 L15.8 13.24 L17.88 20.09 L12 16 L6.12 20.09 L8.2 13.24 L2.49 8.91 L9.65 8.76 Z"/></svg>
+    <svg class="star s2 twinkle" viewBox="0 0 24 24" width="15" height="15"><path fill="#ffdd44" d="M12 2 L14.35 8.76 L21.51 8.91 L15.8 13.24 L17.88 20.09 L12 16 L6.12 20.09 L8.2 13.24 L2.49 8.91 L9.65 8.76 Z"/></svg>
+    <svg class="star s3" viewBox="0 0 24 24" width="20" height="20"><path fill="#ffdd44" d="M12 2 L14.35 8.76 L21.51 8.91 L15.8 13.24 L17.88 20.09 L12 16 L6.12 20.09 L8.2 13.24 L2.49 8.91 L9.65 8.76 Z"/></svg>
+    <svg class="star s4 twinkle2" viewBox="0 0 24 24" width="14" height="14"><path fill="#ffdd44" d="M12 2 L14.35 8.76 L21.51 8.91 L15.8 13.24 L17.88 20.09 L12 16 L6.12 20.09 L8.2 13.24 L2.49 8.91 L9.65 8.76 Z"/></svg>
+  </div>
+  <!-- 中秋：圆月 + 桂花枝剪影 + 飘落花瓣 -->
+  <div class="deco deco-midautumn" aria-hidden="true">
+    <div class="moon"></div>
+    <svg class="osmanthus" viewBox="0 0 200 160" width="220" height="176">
+      <g stroke="#0e1533" fill="#0e1533">
+        <path d="M8 152 Q58 104 118 62 Q158 36 192 18" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="60" cy="112" rx="16" ry="7" transform="rotate(-38 60 112)"/>
+        <ellipse cx="96" cy="86" rx="15" ry="6.5" transform="rotate(-32 96 86)"/>
+        <ellipse cx="132" cy="58" rx="13" ry="6" transform="rotate(-28 132 58)"/>
+        <ellipse cx="82" cy="98" rx="11" ry="5" transform="rotate(28 82 98)"/>
+        <ellipse cx="152" cy="44" rx="10" ry="4.5" transform="rotate(24 152 44)"/>
+        <g stroke="none">
+          <circle cx="120" cy="74" r="3.4"/><circle cx="126" cy="70" r="3.4"/><circle cx="126" cy="78" r="3.4"/><circle cx="132" cy="74" r="3.4"/>
+          <circle cx="160" cy="52" r="3"/><circle cx="165" cy="48" r="3"/><circle cx="165" cy="56" r="3"/><circle cx="170" cy="52" r="3"/>
+          <circle cx="100" cy="98" r="3"/><circle cx="105" cy="94" r="3"/><circle cx="105" cy="102" r="3"/><circle cx="110" cy="98" r="3"/>
+        </g>
+      </g>
+    </svg>
+    <div class="petal p1"></div>
+    <div class="petal p2"></div>
+    <div class="petal p3"></div>
+  </div>
   <header class="topbar">
     <div class="brand"><span class="dot"></span>随机提示音专注计时器</div>
     <div class="top-actions">
@@ -832,7 +966,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.18.0</span>
+            <span>版本 v1.19.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
           </div>
