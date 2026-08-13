@@ -191,9 +191,16 @@ var _hmt = _hmt || [];
     overflow:hidden;
     backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
     box-shadow:var(--shadow-pop); font-size:13.5px; font-weight:600; white-space:nowrap;
-    transform:translate(-50%,-140%); transition:transform .4s cubic-bezier(.2,.8,.3,1.1);
+    /* 收起态彻底隐藏（v1.17.2）：同 fest-bar，translate(-140%) 可能残留几像素边缘 */
+    visibility:hidden; pointer-events:none;
+    transform:translate(-50%,-140%);
+    transition:transform .4s cubic-bezier(.2,.8,.3,1.1), visibility 0s linear .4s;
   }
-  .update-bar.show{ transform:translate(-50%,0); }
+  .update-bar.show{
+    visibility:visible; pointer-events:auto;
+    transform:translate(-50%,0);
+    transition:transform .4s cubic-bezier(.2,.8,.3,1.1), visibility 0s;
+  }
   .update-bar .ub-btn{
     border:none; border-radius:100px; padding:7px 16px; font-size:12.5px; font-weight:600;
     cursor:pointer; font-family:inherit; transition:filter .15s, transform .12s;
@@ -219,9 +226,17 @@ var _hmt = _hmt || [];
     padding:12px 22px; max-width:min(480px, calc(100vw - 40px));
     background:var(--bg); border:1px solid var(--hairline); border-radius:18px;
     box-shadow:var(--shadow-pop); font-size:13.5px; font-weight:600; line-height:1.7; text-align:center;
-    transform:translate(-50%,-180%); transition:transform .4s cubic-bezier(.2,.8,.3,1.1);
+    /* 收起态必须彻底隐藏（v1.17.2 修残留）：translate 百分比相对自身高度，空壳高度小、上移后仍露出一条；
+       用 visibility 在滑出动画结束后彻底隐藏，并切断点击 */
+    visibility:hidden; pointer-events:none;
+    transform:translate(-50%,-180%);
+    transition:transform .4s cubic-bezier(.2,.8,.3,1.1), visibility 0s linear .4s;
   }
-  .fest-bar.show{ transform:translate(-50%,0); }
+  .fest-bar.show{
+    visibility:visible; pointer-events:auto;
+    transform:translate(-50%,0);
+    transition:transform .4s cubic-bezier(.2,.8,.3,1.1), visibility 0s;
+  }
   .fest-bar .fb-line + .fb-line{ margin-top:4px; padding-top:4px; border-top:1px solid var(--hairline); }
   /* 放弃确认弹窗 */
   .abandon-mask{
@@ -764,7 +779,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.17.1</span>
+            <span>版本 v1.17.2</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
           </div>
