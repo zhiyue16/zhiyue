@@ -451,7 +451,7 @@
       <button type="button" class="btn btn-ghost hidden" id="skipRestBtn">跳过休息</button>
       <button type="button" class="btn btn-primary hidden" id="doneBtn">完成，回到准备</button>
     </div>
-    <div class="hint">提示音将随机响起，听到后闭眼休息 10 秒 · <kbd>空格</kbd> 暂停 / 继续 · 悬停计时器 ±5 分钟</div>
+    <div class="hint">提示音将随机响起，听到后闭眼休息 10 秒 · 悬停计时器 ±5 分钟</div>
   </main>
   <footer class="stats-bar">
     <div class="stat c-green"><div class="num"><span id="statMinutes">0</span><small>分钟</small></div><div class="lbl">今日专注</div></div>
@@ -547,7 +547,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.9.2</span>
+            <span>版本 v1.9.3</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -1356,14 +1356,6 @@ $('plusBtn').addEventListener('click', ()=>adjust(5));
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
 document.addEventListener('keydown', e=>{
   if(e.code==='Escape'){ if($('goalMask').classList.contains('show')) closeGoal(); else if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
-  if(e.code!=='Space' || e.repeat) return;
-  // 弹窗（放弃确认/目标设置）打开时不响应空格：弹窗已冻结计时，空格暂停会与之冲突
-  if($('abandonMask').classList.contains('show') || $('goalMask').classList.contains('show')) return;
-  const tag = (document.activeElement && document.activeElement.tagName) || '';
-  if(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(tag)) return;
-  e.preventDefault();
-  if(['focus','mini','rest'].includes(mode)) togglePause();
-  else if(mode==='idle') startFocus();
 });
 renderLogs();
 render();
