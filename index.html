@@ -134,15 +134,36 @@
   @media (prefers-reduced-motion:reduce){
     *{ animation:none !important; transition:none !important; }
   }
-  /* 主题切换：整页背景晕染扩散 */
-  .theme-ripple{
-    position:fixed; z-index:100; border-radius:50%; pointer-events:none;
-    transform:translate(-50%,-50%) scale(0);
-    transition:transform .62s cubic-bezier(.4,.0,.2,1);
+  /* 主题切换：太阳⇄月亮 SVG 形变（轻量，无满屏遮罩）
+     原理：圆盘 + 右上角一块"咬掉"的遮罩圆 + 8 道光芒。
+     深色(月亮)时：遮罩圆移入咬出月牙、光芒旋转收起到 0、圆盘略缩小。 */
+  .theme-ic{ display:block; color:var(--sub); transition:color .3s; }
+  .tb-btn:hover .theme-ic{ color:var(--text); }
+  .theme-ic .tm-core{
+    fill:currentColor;
+    transform-origin:center;
+    transition:transform .5s cubic-bezier(.2,.8,.3,1.1);
   }
-  .theme-ripple.go{ transform:translate(-50%,-50%) scale(1); }
-  .theme-ripple.to-dark{ background:#0a0a0d; }  /* 亮→暗：黑色扩散 */
-  .theme-ripple.to-light{ background:#f4f4f7; } /* 暗→亮：浅色扩散 */
+  .theme-ic .tm-cutout{
+    transform-origin:center;
+    transition:transform .5s cubic-bezier(.2,.8,.3,1.1);
+  }
+  .theme-ic .tm-rays{
+    stroke:currentColor; stroke-width:1.8;
+    transform-origin:center;
+    transition:transform .5s cubic-bezier(.2,.8,.3,1.1), opacity .35s;
+  }
+  /* 深色模式：变月亮 */
+  html[data-theme="dark"] .theme-ic .tm-core{ transform:scale(1.15); }
+  html[data-theme="dark"] .theme-ic .tm-cutout{ transform:translate(-13px,5px) scale(.62); }
+  html[data-theme="dark"] .theme-ic .tm-rays{ transform:scale(0) rotate(90deg); opacity:0; }
+  /* 浅色模式：复位为太阳（默认即太阳，无需额外规则，写清便于理解） */
+  html[data-theme="light"] .theme-ic .tm-core{ transform:scale(1); }
+  html[data-theme="light"] .theme-ic .tm-cutout{ transform:translate(0,0) scale(1); }
+  html[data-theme="light"] .theme-ic .tm-rays{ transform:scale(1) rotate(0); opacity:1; }
+  @media (prefers-reduced-motion:reduce){
+    .theme-ic .tm-core,.theme-ic .tm-cutout,.theme-ic .tm-rays{ transition:none; }
+  }
   /* ---------- 新版本更新提示条 ---------- */
   .update-bar{
     position:fixed; top:18px; left:50%; z-index:200;
@@ -419,7 +440,20 @@
     <div class="top-actions">
       <!-- [优化3] 图标按钮补充 aria-label，屏幕阅读器可识别；type="button" 避免未来被包进 form 时误提交 -->
       <button type="button" class="tb-btn" id="panelBtn" title="设置与记录" aria-label="设置与记录"><span class="tb-ic">⚙︎</span></button>
-      <button type="button" class="tb-btn" id="themeBtn" title="切换浅色 / 深色" aria-label="切换浅色 / 深色"><span class="tb-ic" id="themeIc">🌙</span></button>
+      <button type="button" class="tb-btn" id="themeBtn" title="切换浅色 / 深色" aria-label="切换浅色 / 深色">
+        <svg class="theme-ic" id="themeIcSvg" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+          <!-- 太阳圆盘（月亮形态时缩小并被月牙遮罩咬掉一块） -->
+          <mask id="moonMask"><rect width="24" height="24" fill="#fff"/><circle class="tm-cutout" cx="30" cy="4" r="9" fill="#000"/></mask>
+          <circle class="tm-core" cx="12" cy="12" r="5.5" mask="url(#moonMask)"/>
+          <!-- 太阳光芒（月亮形态时旋转收起到 0） -->
+          <g class="tm-rays" stroke-linecap="round">
+            <line x1="12" y1="2.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="21.5"/>
+            <line x1="2.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="21.5" y2="12"/>
+            <line x1="5.2" y1="5.2" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="18.8" y2="18.8"/>
+            <line x1="5.2" y1="18.8" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="18.8" y2="5.2"/>
+          </g>
+        </svg>
+      </button>
     </div>
   </header>
   <main>
@@ -572,7 +606,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.10.0</span>
+            <span>版本 v1.11.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -661,37 +695,16 @@ function readSettings(){
 /* ================= 主题 ================= */
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', cfg.theme);
-  $('themeIc').textContent = cfg.theme==='dark' ? '☀︎' : '🌙';
   // [优化6] 同步 <meta name="theme-color">：深色模式下移动端浏览器状态栏由蓝色变为深色，与页面融为一体
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if(metaTheme) metaTheme.setAttribute('content', cfg.theme==='dark' ? '#0a0a0d' : '#007aff');
 }
-let themeAnimating = false; // [优化7] 防止快速连点主题按钮导致多个 setTimeout/ripple 叠加、主题状态错乱
-$('themeBtn').addEventListener('click', e=>{
-  if(themeAnimating) return;
-  themeAnimating = true;
-  const ic = $('themeIc');
-  // 图标：先半转淡出 → 换图标 → 转正淡入
-  ic.style.transform = 'rotate(-90deg) scale(.6)'; ic.style.opacity = '0';
-  // 背景晕染：从点击处扩散一个整页圆形遮罩，新主题色随之铺开
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!reduce){
-    const x = e.clientX || innerWidth-70, y = e.clientY || 40;
-    const r = Math.hypot(Math.max(x, innerWidth-x), Math.max(y, innerHeight-y)); // 覆盖最远角
-    const ripple = document.createElement('div');
-    ripple.className = 'theme-ripple ' + (cfg.theme==='dark' ? 'to-light' : 'to-dark');
-    ripple.style.cssText = `left:${x}px; top:${y}px; width:${r*2}px; height:${r*2}px;`;
-    document.body.appendChild(ripple);
-    // 强制 reflow 后展开
-    requestAnimationFrame(()=>requestAnimationFrame(()=>ripple.classList.add('go')));
-    setTimeout(()=>ripple.remove(), 750);
-  }
-  setTimeout(()=>{
-    cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
-    LS.set('rft_cfg', cfg); applyTheme();
-    ic.style.transform = ''; ic.style.opacity = '';
-    themeAnimating = false; // [优化7] 动画结束后解锁
-  }, reduce ? 0 : 480); // 圆即将铺满时切换底层，形成无缝晕染
+// 主题切换：SVG 图标随 data-theme 自动做"太阳⇄月亮"形变，
+// 整页颜色由 :root / [data-theme] 上的 transition 平滑过渡，无需 JS 动画帧。
+// 按钮给个轻旋反馈即可；连点安全（切换是幂等的，CSS 过渡自动衔接）。
+$('themeBtn').addEventListener('click', ()=>{
+  cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
+  LS.set('rft_cfg', cfg); applyTheme();
 });
 applyTheme();
 /* ================= 二级面板（设置 / 记录） ================= */
