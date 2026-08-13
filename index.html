@@ -535,7 +535,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.8.0</span>
+            <span>版本 v1.9.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -791,6 +791,25 @@ function playFinish(){
     });
   }catch(e){ console.warn('音频播放失败', e); }
 }
+// 每日目标达成专属：明亮欢快的上行琶音 + 尾音高八度点睛（区别于结束铃的三升调）
+function playGoalDone(){
+  try{
+    const a = ac(), t0 = a.currentTime + .03;
+    // C5-E5-G5-C6 快速琶音，再叠一个 E6 长音收尾，庆祝感更强
+    const seq = [[523.25,0],[659.25,.1],[783.99,.2],[1046.5,.3],[1318.5,.46]];
+    seq.forEach(([f,dt],i)=>{
+      const t = t0 + dt;
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      const last = i===seq.length-1;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(last?.45:.4, t+.008);
+      g.gain.exponentialRampToValueAtTime(.0001, t + (last?1.4:.5));
+      o.connect(g); g.connect(master());
+      o.start(t); o.stop(t + (last?1.5:.55));
+    });
+  }catch(e){ console.warn('音频播放失败', e); }
+}
 document.querySelectorAll('.sound-chip').forEach(chip=>{
   chip.addEventListener('click', ()=>{
     document.querySelectorAll('.sound-chip').forEach(c=>c.classList.remove('active'));
@@ -1009,10 +1028,17 @@ function endMini(now){
   if(left <= 0){ focusComplete(); return; }
   scheduleChime(now, left);
 }
+// 轮次+1，并在"刚好达成今日目标"的瞬间播放专属庆祝音效
+function bumpRound(){
+  const goal = Math.max(1, cfg.goal||4);
+  const was = stats.rounds;
+  stats.rounds++; saveStats();
+  if(was < goal && stats.rounds >= goal) playGoalDone(); // 恰好跨过目标线才响，避免每次完成都重复
+}
 function focusComplete(){
   flushFocusMinutes();
   mode='focusDone'; paused=false; chimeAt=null;
-  stats.rounds++; saveStats();
+  bumpRound();
   sumMs = totalMs; sumChimes = sessionChimes; // 生成本轮小结快照
   playFinish(); // 番茄钟式三声升调结束铃
   addLog('focus', `专注完成 ${fmt(sumMs)}，提示音 ${sumChimes} 次，闭眼休息 ${sumChimes*10} 秒`);
@@ -1053,7 +1079,7 @@ function settleAbandon(countRound){
     const totalMins = Math.max(1, mins);                  // 至少记 1 分钟
     const flushed = stats.minutes - roundBaseMins;        // 已实时 flush 的分钟
     const add = Math.max(0, totalMins - flushed);         // 只补零头
-    stats.minutes += add; stats.rounds++; saveStats();
+    stats.minutes += add; bumpRound();
     focusAccMs = 0;
     sumMs = elapsed; sumChimes = sessionChimes;           // 复用完成页小结
     playFinish(); celebrate();
@@ -1283,7 +1309,7 @@ function renderGoal(){
   const idle = (mode==='idle');
   const done = cur >= goal && goal > 0;
   txt.textContent = done ? `今日目标已达成 ${cur}/${goal}` : `今日目标 ${cur}/${goal}`;
-  ic.textContent = done ? '🎉' : '🎯';
+  ic.textContent = '🍅'; // 番茄图标
   pill.classList.toggle('done', done);
   pill.classList.toggle('readonly', !idle);
   edit.textContent = idle ? '点击设置' : '';
