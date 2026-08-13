@@ -323,6 +323,21 @@ var _hmt = _hmt || [];
   @media (prefers-reduced-motion:reduce){
     .theme-ic .tm-core,.theme-ic .tm-cutout,.theme-ic .tm-rays{ transition:none; }
   }
+  /* ---------- 主题扩散过渡层（v1.23.0） ----------
+     日夜切换时以主题按钮为圆心的软边圆层：背景色/圆心/--ripple-scale 由 JS 内联注入。
+     z-index 300（层级表见 .fest-bar.lower 上方注释）：覆盖一切，扩散所见即新主题色 */
+  .theme-ripple{
+    position:fixed; z-index:300; pointer-events:none; border-radius:50%;
+    width:100px; height:100px; opacity:0; transform:scale(0);
+  }
+  .theme-ripple.grow{
+    transition:transform .62s cubic-bezier(.25,.8,.3,1), opacity .12s ease;
+    transform:scale(var(--ripple-scale, 30)); opacity:1;
+  }
+  .theme-ripple.fade{
+    transition:opacity .26s ease, transform 0s;
+    opacity:0;
+  }
   /* ---------- 新版本更新提示条 ---------- */
   .update-bar{
     position:fixed; top:18px; left:50%; z-index:200;
@@ -380,7 +395,7 @@ var _hmt = _hmt || [];
   }
   /* 避让 updateBar（v1.20.0）：更新提示条显示期间横幅下移，防止顶部叠放。
      弹窗层级表（从低到高，新组件按此插入）：
-     deco 装饰(0) → stats-bar(2) → scrim(20) → panel(30) → abandon-mask(50) → goal-mask(55) → fd-mask(58) → fest-bar(190) → update-bar(200) */
+     deco 装饰(0) → stats-bar(2) → scrim(20) → panel(30) → abandon-mask(50) → goal-mask(55) → fd-mask(58) → fest-bar(190) → update-bar(200) → theme-ripple(300) */
   .fest-bar.lower{ top:170px; }
   .fest-bar .fb-line + .fb-line{ margin-top:4px; padding-top:4px; border-top:1px solid var(--hairline); }
   /* 放弃确认弹窗 */
@@ -739,6 +754,8 @@ var _hmt = _hmt || [];
 </head>
 <body>
   <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
+  <!-- 主题扩散过渡层（v1.23.0）：日夜切换时从主题按钮中心扩散的软边圆层，JS 内联设置背景色/圆心/缩放 -->
+  <div class="theme-ripple" id="themeRipple" aria-hidden="true"></div>
   <!-- ================= 节日装饰（v1.19.0）：纯 CSS/SVG 绘制，仅在对应 data-fest 激活时显示，
        一律 pointer-events:none、z-index 0（与氛围光斑同层，不遮挡任何交互） ================= -->
   <!-- 春节：灯笼 ×2 + 竖排对联 + 金色祥云光斑 -->
@@ -1001,7 +1018,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.22.2</span>
+            <span>版本 v1.23.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
@@ -1125,13 +1142,42 @@ function applyTheme(){
 // 主题切换：SVG 图标随 data-theme 自动做"太阳⇄月亮"形变，
 // 整页颜色由 :root / [data-theme] 上的 transition 平滑过渡，无需 JS 动画帧。
 // 按钮给个轻旋反馈即可；连点安全（切换是幂等的，CSS 过渡自动衔接）。
+/* 主题扩散过渡层（v1.23.0）：以主题按钮为圆心扩散软边圆层，扩散过半时在圆层遮盖下切 data-theme，
+   再淡出圆层——"夜色从按钮蔓延到整页"，而非瞬间变黑。Light/Dark 两方向走同一函数仅颜色不同。
+   颜色表含节日变体：data-fest 激活时用节日底色，普通日用 light/dark 底色的纯色核 */
+const RIPPLE_BG = { light:'#f4f4f7', dark:'#0a0a0d',
+  spring:{light:'#b01e2c', dark:'#38040b'}, national:{light:'#ce1526', dark:'#420710'},
+  midautumn:{light:'#3a4a7d', dark:'#0d1330'} };
+function rippleStart(nextTheme){
+  const r = $('themeRipple'), btn = $('themeBtn').getBoundingClientRect();
+  const cx = btn.left + btn.width/2, cy = btn.top + btn.height/2;
+  const dist = Math.ceil(Math.max( // 圆心到四个角的最远距离，决定覆盖整屏所需缩放
+    Math.hypot(cx, cy), Math.hypot(innerWidth-cx, cy),
+    Math.hypot(cx, innerHeight-cy), Math.hypot(innerWidth-cx, innerHeight-cy)));
+  const fest = document.documentElement.getAttribute('data-fest');
+  const color = (fest && RIPPLE_BG[fest]) ? RIPPLE_BG[fest][nextTheme] : RIPPLE_BG[nextTheme];
+  r.style.left = (cx-50) + 'px'; r.style.top = (cy-50) + 'px';
+  r.style.background = `radial-gradient(circle, ${color} 60%, transparent 78%)`;
+  r.style.setProperty('--ripple-scale', (dist*2/100 + 2).toFixed(1));
+  void r.offsetWidth; // 强制 reflow，确保从 scale(0) 起播
+  r.classList.add('grow');
+}
+function rippleFade(){ $('themeRipple').classList.add('fade'); }
+function rippleReset(){ const r = $('themeRipple'); r.classList.remove('grow','fade'); r.style.opacity = 0; }
 let themeBusy = false;
 $('themeBtn').addEventListener('click', ()=>{
-  if(themeBusy) return; // 形变动画期间忽略连点，杜绝"半路反向"造成的卡滞感
-  themeBusy = true; setTimeout(()=>{ themeBusy = false; }, 460);
-  cfg.theme = cfg.theme==='dark' ? 'light' : 'dark';
-  LS.set('rft_cfg', cfg); applyTheme();
-  applyFest(); // 节日主题下切换明暗：重刷状态栏颜色（applyFest 幂等，非节日无副作用）
+  if(themeBusy) return; // 动画期间忽略连点，杜绝"半路反向"造成的卡滞感
+  themeBusy = true;
+  const next = cfg.theme==='dark' ? 'light' : 'dark';
+  cfg.theme = next; LS.set('rft_cfg', cfg); // 状态立即落盘：动画中途刷新主题也正确
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){ // 减少动效：无扩散层，走原路径
+    applyTheme(); applyFest();
+    setTimeout(()=>{ themeBusy = false; }, 460); return;
+  }
+  rippleStart(next);                                   // 扩散圆层从按钮中心起播
+  setTimeout(()=>{ applyTheme(); applyFest(); }, 380); // 扩散过半时在圆层遮盖下切换主题（节日色由 applyFest 重刷）
+  setTimeout(rippleFade, 660);                         // 全屏覆盖后淡出
+  setTimeout(()=>{ rippleReset(); themeBusy = false; }, 940); // 复位并解锁（防连点时长覆盖完整动画）
 });
 applyTheme();
 /* ================= 二级面板（设置 / 记录） ================= */

@@ -1,6 +1,6 @@
 /* [优化1] 缓存版本升级至 v7：fetch 策略变更（仅缓存 GET、离线导航回退），
    新版本号可触发旧 SW 退场、新缓存生效 */
-const CACHE_NAME = 'focus-timer-v38';
+const CACHE_NAME = 'focus-timer-v39';
 const urlsToCache = [
   './',                 // [优化2] 预缓存根路径，离线访问目录 URL 时也能命中
   './index.html',
