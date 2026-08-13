@@ -214,7 +214,8 @@
   .goal-pill:active{ transform:scale(.96); }
   .goal-pill.readonly{ cursor:default; }
   .goal-pill.readonly:hover{ background:var(--input-bg); border-color:transparent; }
-  .goal-pill .g-ic{ font-size:14px; }
+  .goal-pill .g-ic{ display:inline-flex; align-items:center; }
+  .goal-pill .g-ic svg{ display:block; }
   .goal-pill .g-txt{ font-variant-numeric:tabular-nums; font-weight:600; color:var(--text); }
   .goal-pill .g-edit{ font-size:11px; color:var(--sub); }
   .goal-pill.done{ background:rgba(40,200,64,.14); border-color:rgba(40,200,64,.3); }
@@ -426,7 +427,18 @@
     </div>
     <div class="goal-row">
       <button type="button" class="goal-pill" id="goalPill" title="设置每日目标">
-        <span class="g-ic" id="goalIc">🎯</span>
+        <span class="g-ic" id="goalIc"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+          <defs><radialGradient id="tg" cx="38%" cy="32%" r="75%">
+            <stop offset="0%" stop-color="#ff8a70"/><stop offset="45%" stop-color="#f4502e"/><stop offset="100%" stop-color="#d63a1c"/>
+          </radialGradient></defs>
+          <!-- 果身 -->
+          <circle cx="12" cy="13.5" r="8.2" fill="url(#tg)"/>
+          <!-- 高光 -->
+          <ellipse cx="9" cy="10.5" rx="2.6" ry="1.7" fill="#fff" opacity=".38"/>
+          <!-- 叶子蒂：五片小叶 -->
+          <path d="M12 6.2c-.5-1.8-.2-3 .6-4.2M12 6.2c-1.8.2-3.4-.6-4.3-2M12 6.2c1.8.2 3.4-.6 4.3-2M12 6.2c-1.2 1-2.9 1.2-4.4.6M12 6.2c1.2 1 2.9 1.2 4.4.6" stroke="#2f9e44" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+          <circle cx="12" cy="6.4" r="1.1" fill="#2f9e44"/>
+        </svg></span>
         <span class="g-txt" id="goalTxt">今日目标 0/4</span>
         <span class="g-edit" id="goalEdit">点击设置</span>
       </button>
@@ -535,7 +547,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.9.0</span>
+            <span>版本 v1.9.1</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -1303,13 +1315,12 @@ function render(){
 }
 /* ================= 每日目标 ================= */
 function renderGoal(){
-  const pill = $('goalPill'), txt = $('goalTxt'), ic = $('goalIc'), edit = $('goalEdit');
+  const pill = $('goalPill'), txt = $('goalTxt'), edit = $('goalEdit');
   if(!pill) return;
   const cur = stats.rounds, goal = Math.max(1, cfg.goal||4);
   const idle = (mode==='idle');
   const done = cur >= goal && goal > 0;
   txt.textContent = done ? `今日目标已达成 ${cur}/${goal}` : `今日目标 ${cur}/${goal}`;
-  ic.textContent = '🍅'; // 番茄图标
   pill.classList.toggle('done', done);
   pill.classList.toggle('readonly', !idle);
   edit.textContent = idle ? '点击设置' : '';
