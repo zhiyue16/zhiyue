@@ -98,12 +98,12 @@ var _hmt = _hmt || [];
   /* --- 中秋（夜空明月） --- */
   html[data-fest="midautumn"] body{
     background:
-      radial-gradient(circle at 82% 14%, rgba(255,242,196,.85) 0%, rgba(255,242,196,.22) 9%, transparent 24%),
+      radial-gradient(circle at 94% 7%, rgba(255,242,196,.85) 0%, rgba(255,242,196,.22) 9%, transparent 24%),
       linear-gradient(165deg, #232f55 0%, #3a4a7d 55%, #655a8f 100%);
   }
   html[data-theme="dark"][data-fest="midautumn"] body{
     background:
-      radial-gradient(circle at 82% 14%, rgba(255,242,196,.8) 0%, rgba(255,242,196,.2) 9%, transparent 24%),
+      radial-gradient(circle at 94% 7%, rgba(255,242,196,.8) 0%, rgba(255,242,196,.2) 9%, transparent 24%),
       linear-gradient(165deg, #0d1330 0%, #1f2a52 55%, #3d3566 100%);
   }
   html[data-fest="midautumn"]{
@@ -154,17 +154,17 @@ var _hmt = _hmt || [];
   html[data-theme="dark"][data-fest="national"] .deco-rays{
     background:repeating-conic-gradient(from 180deg at 50% 118%, rgba(255,221,68,.095) 0deg 3.5deg, transparent 3.5deg 13deg);
   }
-  /* --- 国庆：五角星（错落排布，2 颗 opacity 呼吸闪烁） --- */
+  /* --- 国庆：五角星（错落排布，2 颗 opacity 呼吸闪烁）。s3 在面板区（top:120px 起）上方，s4 在面板 x 范围左侧 --- */
   .star.s1{ top:96px; left:9%; }
   .star.s2{ top:152px; left:23%; }
-  .star.s3{ top:78px; right:11%; }
-  .star.s4{ top:168px; right:27%; }
+  .star.s3{ top:48px; right:12%; }
+  .star.s4{ top:168px; right:32%; }
   .twinkle{ animation:twinkle 2.6s ease-in-out infinite; }
   .twinkle2{ animation:twinkle 3.4s ease-in-out infinite .9s; }
   @keyframes twinkle{ 0%,100%{ opacity:.35; } 50%{ opacity:1; } }
-  /* --- 中秋：圆月（右上，柔和月晕） --- */
+  /* --- 中秋：圆月（右上，柔和月晕）。top:16px/right:3% 在面板区（top:120px 起）上方，与背景光晕 94% 7% 对齐 --- */
   .moon{
-    top:58px; right:9%; width:92px; height:92px; border-radius:50%;
+    top:16px; right:3%; width:92px; height:92px; border-radius:50%;
     background:radial-gradient(circle at 38% 34%, #fff9e4, #ffeaa6 68%, #f0cf72);
     box-shadow:0 0 46px 24px rgba(255,242,196,.32), 0 0 120px 60px rgba(255,242,196,.14);
   }
@@ -574,13 +574,14 @@ var _hmt = _hmt || [];
   html[data-theme="dark"] .scrim{ background:rgba(0,0,0,.35); }
   .scrim.show{ opacity:1; pointer-events:auto; }
   .panel{
-    position:fixed; top:86px; left:24px; z-index:30; /* v1.22.0 改左侧滑出：与顶部药丸同侧，计时圆环始终完整可见 */
-    width:350px; max-height:calc(100vh - 116px);
+    position:fixed; top:120px; right:24px; z-index:30; /* v1.22.1 回右侧展开（宽屏右侧有空白，不遮挡计时器）；
+      top:120px 是给右上月亮/星星装饰留的位置（见 .moon/.star），面板位置变化时右侧装饰坐标需同步校对 */
+    width:350px; max-height:calc(100vh - 150px);
     display:flex; flex-direction:column;
     background:var(--pill); border:1px solid var(--pill-border); border-radius:22px;
     backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
     box-shadow:var(--shadow-pop);
-    opacity:0; transform:translateX(-16px); transform-origin:top left;
+    opacity:0; transform:translateX(16px); transform-origin:top right;
     pointer-events:none; transition:opacity .22s, transform .22s;
   }
   .panel.show{ opacity:1; transform:none; pointer-events:auto; }
@@ -997,7 +998,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.22.0</span>
+            <span>版本 v1.22.1</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
