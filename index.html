@@ -105,7 +105,7 @@
   .phase-label .phase-dot{ width:8px; height:8px; border-radius:50%; background:var(--sub); transition:background .3s, box-shadow .3s; }
   .phase-focus .phase-dot{ background:var(--green); box-shadow:0 0 10px var(--green); }
   .phase-rest .phase-dot{ background:var(--red); box-shadow:0 0 10px var(--red); }
-  .ring-wrap{ position:relative; width:330px; height:330px; margin:14px 0 4px; }
+  .ring-wrap{ position:relative; width:400px; height:400px; margin:14px 0 4px; }
   .ring-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); }
   .ring-bg{ fill:none; stroke:var(--hairline); stroke-width:10; }
   .ring-fg{ fill:none; stroke:var(--sub); stroke-width:10; stroke-linecap:round; transition:stroke-dashoffset .35s linear, stroke .4s; }
@@ -220,33 +220,32 @@
   /* idle 时点击可改时长：鼠标变手型 + 悬停微亮 */
   .time-text{ cursor:default; border-radius:12px; transition:color .15s; user-select:none; }
   .time-text.clickable{ cursor:pointer; }
-  .time-text.clickable:hover{ color:var(--accent); }
-  /* ---------- 专注时长设置弹窗 ---------- */
+  .time-text.clickable:hover{ color:inherit; }
+  /* ---------- 专注时长设置弹窗（挂在圆环下方，非全屏遮罩） ---------- */
   .fd-mask{
-    position:fixed; inset:0; z-index:58; display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.3); opacity:0; pointer-events:none; transition:opacity .2s;
+    position:fixed; z-index:58; opacity:0; pointer-events:none;
+    transition:opacity .18s;
   }
   .fd-mask.show{ opacity:1; pointer-events:auto; }
   .fd-box{
-    width:270px; padding:22px 20px 18px; border-radius:18px; text-align:center;
+    width:230px; padding:16px 16px 14px; border-radius:16px; text-align:center;
     background:var(--pill); border:1px solid var(--pill-border);
     backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
-    box-shadow:var(--shadow-pop); transform:scale(.95); transition:transform .2s cubic-bezier(.2,.8,.3,1.1);
+    box-shadow:var(--shadow-pop);
   }
-  .fd-mask.show .fd-box{ transform:none; }
   .fd-input-row{ display:flex; align-items:baseline; justify-content:center; gap:8px; }
   .fd-input{
-    width:110px; font-size:20px; font-weight:700; text-align:center; font-family:inherit; color:var(--text);
-    background:var(--input-bg); border:2px solid var(--accent); border-radius:11px; padding:7px 8px; outline:none;
+    width:90px; font-size:18px; font-weight:700; text-align:center; font-family:inherit; color:var(--text);
+    background:var(--input-bg); border:2px solid var(--accent); border-radius:10px; padding:6px 8px; outline:none;
     font-variant-numeric:tabular-nums;
   }
   .fd-input::-webkit-outer-spin-button,.fd-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   .fd-input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
   .fd-unit{ font-size:14px; color:var(--sub); }
   .fd-range{ font-size:12px; color:var(--sub); margin-top:9px; }
-  .fd-actions{ display:flex; gap:10px; margin-top:16px; }
+  .fd-actions{ display:flex; gap:8px; margin-top:13px; }
   .fd-btn{
-    flex:1; border:none; border-radius:11px; padding:10px 0; font-size:14px; font-weight:600;
+    flex:1; border:none; border-radius:10px; padding:8px 0; font-size:13px; font-weight:600;
     cursor:pointer; font-family:inherit; background:var(--input-bg); color:var(--text);
     transition:filter .15s, transform .12s;
   }
@@ -566,7 +565,7 @@
       <button type="button" class="btn btn-ghost hidden" id="skipRestBtn">跳过休息</button>
       <button type="button" class="btn btn-primary hidden" id="doneBtn">完成，回到准备</button>
     </div>
-    <div class="hint">提示音将随机响起，听到后闭眼休息 10 秒 · 悬停计时器 ±5 分钟</div>
+    <div class="hint" style="display:none;">提示音将随机响起，听到后闭眼休息 10 秒 · 悬停计时器 ±5 分钟</div>
   </main>
   <footer class="stats-bar">
     <div class="stat c-green"><div class="num"><span id="statMinutes">0</span><small>分钟</small></div><div class="lbl">今日专注</div></div>
@@ -686,7 +685,7 @@
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.14.0</span>
+            <span>版本 v1.14.1</span>
             <span class="about-sep">·</span>
             <span>2026-08-13</span>
           </div>
@@ -1511,6 +1510,12 @@ function openFocusDur(){
   if(mode!=='idle') return; // 计时中点击无效
   const inp = $('focusDurInput');
   inp.value = cfg.focus;
+  // 定位到时间数字正下方，与参考图一致
+  const r = $('timeText').getBoundingClientRect();
+  const mask = $('focusDurMask');
+  mask.style.left = (r.left + r.width/2) + 'px';
+  mask.style.top = (r.bottom + 10) + 'px';
+  mask.style.transform = 'translateX(-50%)';
   $('focusDurMask').classList.add('show');
   setTimeout(()=>{ inp.focus(); inp.select(); }, 50); // 等弹窗动画起再聚焦选中，避免闪烁
 }
