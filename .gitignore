@@ -1,3 +1,5 @@
 .tools/
 node_modules/
 release/
+tests/shots/
+tests/electron-app.log
