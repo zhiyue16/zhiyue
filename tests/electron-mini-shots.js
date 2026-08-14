@@ -68,10 +68,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await mini.hover('#card'); await sleep(450);
   await mini.screenshot({ path: path.join(OUT, 'mini-1b-expanded-hover.png') });
   console.log('saved mini-1b-expanded-hover.png');
-  // 2. 收起态（悬停）：先收起 → 先设 96 高视口再悬停（否则鼠标落点在窗外，hover 不生效）
+  // 2. 收起态（悬停）：先收起 → 先设 156 高视口再悬停（否则鼠标落点在窗外，hover 不生效）
   await mini.evaluate(() => document.getElementById('mCollapse').click());
   await sleep(700);
-  await mini.setViewport({ width: 280, height: 96 });
+  await mini.setViewport({ width: 280, height: 156 });
   await sleep(300);
   await mini.hover('#card'); await sleep(450);
   await mini.screenshot({ path: path.join(OUT, 'mini-2-collapsed-hover.png') });

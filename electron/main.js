@@ -77,7 +77,7 @@ function createTray(){
    遥控器架构：计时状态机只在主窗口渲染进程；浮窗是独立无边框 BrowserWindow，
    状态/命令都由主进程中转（rft:mini:state 下行 / rft:mini:cmd 上行） */
 let miniWin = null, miniSnapped = null, miniCollapsed = false, miniMoving = false;
-const MINI_W = 280, MINI_H = 210, MINI_H_MIN = 96, SNAP_W = 12;
+const MINI_W = 280, MINI_H = 210, MINI_H_MIN = 156, SNAP_W = 12; // 收起=仅隐藏底部统计栏(48+6)，倒计时区域不动
 
 function sendMiniSnap(){ if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:snap', miniSnapped); }
 
