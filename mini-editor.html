@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<!-- Mini 时长弹窗（v1.28.2）：独立无边框小窗口，由主进程按浮窗锚点开在卡片外。
+     fd-* 三行结构复制自主窗口 index.html:458-488（单文件约定，不抽共用文件）；
+     body zoom:.75 = 主窗口弹窗的 75%。本页禁用 vh/% 高度（浮窗视口有 800×600 假象坑，见交接文档） -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>设置专注时长</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#f4f4f7; --text:#1d1d1f; --sub:#86868b; --accent:#007aff;
+    --pill-border:rgba(255,255,255,.8);
+    --input-bg:rgba(118,118,128,.1); --shadow-pop:0 24px 70px rgba(0,0,0,.18), 0 4px 12px rgba(0,0,0,.07);
+  }
+  html[data-theme="dark"]{
+    --bg:#0a0a0d; --text:#f5f5f7; --sub:#98989f; --accent:#0a84ff;
+    --pill-border:rgba(255,255,255,.09);
+    --input-bg:rgba(118,118,128,.18); --shadow-pop:0 24px 70px rgba(0,0,0,.6), 0 4px 12px rgba(0,0,0,.4);
+  }
+  /* 节日限定（与 mini.html 同变量覆盖） */
+  html[data-fest="spring"]{ --text:#fff5e0; --sub:#f3d3a0; --accent:#ffd23f; --bg:#7d1020; --pill-border:rgba(255,210,63,.3); --input-bg:rgba(255,235,190,.13); }
+  html[data-fest="national"]{ --text:#fff6e8; --sub:#f5d6b0; --accent:#ffdd44; --bg:#8f0f1f; --pill-border:rgba(255,221,68,.3); --input-bg:rgba(255,240,200,.13); }
+  html[data-fest="midautumn"]{ --text:#f6f1e2; --sub:#cdc6e0; --accent:#ffd873; --bg:#1f2a52; --pill-border:rgba(255,216,115,.28); --input-bg:rgba(230,230,255,.12); }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",sans-serif;
+    user-select:none; zoom:.75; /* 75% = 主窗口弹窗等比缩小 */
+    padding:48px; /* 阴影留白：窗口透明区域，fd-box 阴影在其中完整渲染（48×0.75=36 视觉 px，与 main.js 锚点偏移一致） */
+  }
+  .fd-box{
+    width:230px; padding:16px 16px 14px; border-radius:16px; text-align:center;
+    /* 有意不用主窗口的半透明+backdrop-filter：性能约定禁 backdrop-filter，窗口底下是桌面会透脏 */
+    background:var(--bg); border:1px solid var(--pill-border);
+    box-shadow:var(--shadow-pop);
+  }
+  .fd-input-row{ display:flex; align-items:baseline; justify-content:center; gap:8px; }
+  .fd-input{
+    width:90px; font-size:18px; font-weight:700; text-align:center; font-family:inherit; color:var(--text);
+    background:var(--input-bg); border:2px solid var(--accent); border-radius:10px; padding:6px 8px; outline:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .fd-input::-webkit-outer-spin-button,.fd-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .fd-input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
+  .fd-unit{ font-size:14px; color:var(--sub); }
+  .fd-range{ font-size:12px; color:var(--sub); margin-top:9px; }
+  .fd-actions{ display:flex; gap:8px; margin-top:13px; }
+  .fd-btn{
+    flex:1; border:none; border-radius:10px; padding:8px 0; font-size:13px; font-weight:600;
+    cursor:pointer; font-family:inherit; background:var(--input-bg); color:var(--text);
+    transition:filter .15s, transform .12s;
+  }
+  .fd-btn:hover{ filter:brightness(1.06); }
+  .fd-btn:active{ transform:scale(.97); }
+  .fd-btn.primary{ background:var(--accent); color:#fff; }
+  @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+  <div class="fd-box">
+    <div class="fd-input-row">
+      <input class="fd-input" id="fdInput" type="number" min="5" max="180" step="1" aria-label="专注时长（分钟）">
+      <span class="fd-unit">分钟</span>
+    </div>
+    <div class="fd-range">可选范围：5~180 分钟</div>
+    <div class="fd-actions">
+      <button type="button" class="fd-btn" id="fdCancel">取消</button>
+      <button type="button" class="fd-btn primary" id="fdOk">确定</button>
+    </div>
+  </div>
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const api = window.electronAPI;
+if(!api){ document.body.innerHTML = '<div style="padding:20px;font-size:13px;">仅桌面客户端可用</div>'; return; }
+/* 初始化：主进程经 query 传入当前时长/主题/节日 */
+const q = new URLSearchParams(location.search);
+document.documentElement.setAttribute('data-theme', q.get('theme') === 'dark' ? 'dark' : 'light');
+const fest = q.get('fest');
+if(fest) document.documentElement.setAttribute('data-fest', fest);
+const inp = $('fdInput');
+inp.value = parseInt(q.get('focus'), 10) || 90;
+setTimeout(() => { inp.focus(); inp.select(); }, 50);
+
+let done = false; // 防 blur 与按钮/回车重复提交
+function commit(){
+  if(done) return; done = true;
+  const v = parseInt(inp.value, 10);
+  if(Number.isNaN(v)) api.miniEditorCancel(); // 非法输入=保持原值=取消（与主窗口语义一致）
+  else api.miniEditorCommit(Math.min(180, Math.max(5, v))); // 与主窗口同一套 5~180 钳制
+}
+function cancel(){ if(done) return; done = true; api.miniEditorCancel(); }
+$('fdOk').addEventListener('click', commit);
+$('fdCancel').addEventListener('click', cancel);
+inp.addEventListener('keydown', e => { if(e.key==='Enter') commit(); if(e.key==='Escape') cancel(); });
+window.addEventListener('blur', cancel); // 点了弹窗外（别的窗口/桌面）=取消
+})();
+</script>
+</body>
+</html>

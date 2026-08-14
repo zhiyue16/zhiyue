@@ -30,5 +30,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   miniState: (s) => ipcRenderer.send('rft:mini:state', s),
   onMiniState: (cb) => ipcRenderer.on('rft:mini:state', (e, s) => cb(s)),
   onMiniSnap: (cb) => ipcRenderer.on('rft:mini:snap', (e, v) => cb(v)),
+  // 时长弹窗独立窗口（v1.28.2）：浮窗发锚点开窗；弹窗页发 commit/cancel 结果
+  miniEditorOpen: (anchor) => ipcRenderer.send('rft:mini:editoropen', anchor),
+  miniEditorCommit: (v) => ipcRenderer.send('rft:mini:editorcmd', { type: 'commit', value: v }),
+  miniEditorCancel: () => ipcRenderer.send('rft:mini:editorcmd', { type: 'cancel' }),
   showMainWindow: () => ipcRenderer.send('rft:win:show')
 });

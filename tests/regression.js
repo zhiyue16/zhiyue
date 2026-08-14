@@ -47,6 +47,9 @@ async function newPage(seed, query, electron, ctx) {
         miniState: s => { window.__miniState = s; },
         onMiniState: cb => { window.__miniStateCb = cb; },
         onMiniSnap: cb => { window.__miniSnapCb = cb; },
+        miniEditorOpen: a => { window.__miniEditorOpen = a; },
+        miniEditorCommit: v => { (window.__editorCommits = window.__editorCommits||[]).push(v); },
+        miniEditorCancel: () => { window.__editorCancels = (window.__editorCancels||0)+1; },
         showMainWindow: () => { window.__showMain = (window.__showMain||0)+1; } };
     }
     if (seedStr) {
@@ -752,7 +755,7 @@ async function tMiniWin() {
   await page.setViewport({ width: 800, height: 110 }); // 模拟主进程收起改窗高（185-75）
   await sleep(250);
   pass('Mini窗: 收起仅隐藏统计栏', await page.$eval('#mBottom', el => getComputedStyle(el).display === 'none'));
-  pass('Mini窗: 收起后圆环尺寸不变(64px)', expRing === 64 && (await page.$eval('#mRing', el => Math.round(el.getBoundingClientRect().width))) === expRing);
+  pass('Mini窗: 收起后圆环尺寸不变(43px)', expRing >= 42 && expRing <= 44 && (await page.$eval('#mRing', el => Math.round(el.getBoundingClientRect().width))) === expRing);
   pass('Mini窗: 收起后阶段文字位置不变', (await page.$eval('#mPhase', el => { const r = el.getBoundingClientRect(); return Math.round(r.x)+','+Math.round(r.y); })) === expPhase);
   pass('Mini窗: 收起后时间字号不变', (await page.$eval('#mTime', el => getComputedStyle(el).fontSize)) === expFont);
   pass('Mini窗: 收起态按钮默认隐藏', await page.$eval('.m-actions', el => getComputedStyle(el).opacity === '0'));
@@ -781,6 +784,61 @@ async function tMiniWin() {
   await page.click('#mMore'); await sleep(150);
   pass('Mini窗: ···菜单两项', (await page.$eval('#mOpenMain', el => el.textContent)).includes('打开主窗口')
        && (await page.$eval('#mCloseMini', el => el.textContent)).includes('关闭浮窗'));
+  // --- 时长弹窗锚点上报（v1.28.2：弹窗是独立窗口 mini-editor.html，浮窗页只发锚点） ---
+  await push(idleSt); await sleep(250);
+  pass('Mini窗: 浮窗页无内嵌弹窗 DOM', await page.evaluate(() => !document.getElementById('mEditor')));
+  await page.click('#mTime'); await sleep(250);
+  const anchor = await page.evaluate(() => window.__miniEditorOpen);
+  const tmRect = await page.$eval('#mTime', el => { const r = el.getBoundingClientRect(); return { left: r.left }; });
+  pass('Mini窗: 点击时间上报弹窗锚点', !!(anchor && anchor.dx > 0 && anchor.dy > 0 && anchor.focus === 25));
+  pass('Mini窗: 锚点横向=时间「0」字形左缘', Math.abs(anchor.dx - (tmRect.left + 2)) <= 4, 'dx=' + (anchor && anchor.dx));
+  pass('Mini窗: 锚点纵向=卡片下缘（展开123+4）', anchor && anchor.dy === 127, 'dy=' + (anchor && anchor.dy));
+  await push({ ...idleSt, mode:'focus', leftMs: 298000, totalMs: 300000 }); await sleep(250);
+  await page.evaluate(() => { window.__miniEditorOpen = null; document.getElementById('mTime').click(); });
+  pass('Mini窗: 计时中点击时间不开弹窗', await page.evaluate(() => !window.__miniEditorOpen));
+  await page.close();
+  await ctx.close();
+}
+
+async function tMiniEditor() {
+  // mini-editor.html 弹窗页（v1.28.2 独立窗口）：三行结构、主题/节日 query、提交钳制、取消
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(null, 'page:mini-editor.html?focus=25&theme=dark&fest=spring', true, ctx);
+  await sleep(300);
+  pass('Mini弹窗: 三行结构（输入行/范围说明/双按钮）', await page.evaluate(() =>
+    !!document.querySelector('.fd-input-row .fd-input')
+    && (document.querySelector('.fd-range')||{}).textContent === '可选范围：5~180 分钟'
+    && document.querySelectorAll('.fd-actions .fd-btn').length === 2));
+  pass('Mini弹窗: query 带入初始时长 25', (await page.$eval('#fdInput', el => el.value)) === '25');
+  pass('Mini弹窗: query 带入深色+春节主题', await page.evaluate(() =>
+    document.documentElement.getAttribute('data-theme') === 'dark'
+    && document.documentElement.getAttribute('data-fest') === 'spring'));
+  pass('Mini弹窗: 输入框禁用原生 spin 箭头', await page.evaluate(() => {
+    const rules = [...document.styleSheets[0].cssRules].map(r => r.cssText).join('');
+    return rules.includes('::-webkit-inner-spin-button') && rules.includes('appearance: none'); // Chrome 序列化为 appearance
+  }));
+  // 确定：钳制 5~180 后提交（注意：reload 后 window 全局重建，每个场景的计数断言都是当次页面内的）
+  await page.$eval('#fdInput', el => { el.value = '999'; });
+  await page.click('#fdOk'); await sleep(200);
+  pass('Mini弹窗: 确定提交并钳制为 180', await page.evaluate(() => (window.__editorCommits||[]).slice(-1)[0] === 180));
+  // 非法输入 = 取消（保持原值，与主窗口语义一致）。页面 done 标志一次性，每个场景需重载
+  await page.reload({ waitUntil: 'load' }); await sleep(400);
+  await page.$eval('#fdInput', el => { el.value = 'abc'; });
+  await page.click('#fdOk'); await sleep(200);
+  pass('Mini弹窗: 非法输入走取消不提交', await page.evaluate(() =>
+    (window.__editorCommits||[]).length === 0 && (window.__editorCancels||0) === 1));
+  // 取消按钮
+  await page.reload({ waitUntil: 'load' }); await sleep(400);
+  await page.click('#fdCancel'); await sleep(200);
+  pass('Mini弹窗: 取消按钮生效', (await page.evaluate(() => window.__editorCancels||0)) === 1);
+  // Enter 提交 / Esc 取消
+  await page.reload({ waitUntil: 'load' }); await sleep(400);
+  await page.$eval('#fdInput', el => { el.value = '45'; });
+  await page.keyboard.press('Enter'); await sleep(200);
+  pass('Mini弹窗: Enter 提交 45', await page.evaluate(() => (window.__editorCommits||[]).slice(-1)[0] === 45));
+  await page.reload({ waitUntil: 'load' }); await sleep(400);
+  await page.keyboard.press('Escape'); await sleep(200);
+  pass('Mini弹窗: Esc 取消', (await page.evaluate(() => window.__editorCancels||0)) === 1);
   await page.close();
   await ctx.close();
 }
@@ -825,7 +883,7 @@ async function tSwAndMisc() {
   const suites = [tMainFlow, tAbandon2min, tAbandon7min, tContinuous, tPreviewPostpone,
                   tPauseDuringPreview, tThemeLock, tLogsAndGoal, tRollover, tSchemaMigration,
                   tFestival, tMilestones, tUpdateBar, tDeco, tFixesV120, tAchievement, tLayout,
-                  tThemeRipple, tElectronShim, tFrameless, tChimeLeftFix, tMini, tMiniWin, tSwAndMisc];
+                  tThemeRipple, tElectronShim, tFrameless, tChimeLeftFix, tMini, tMiniWin, tMiniEditor, tSwAndMisc];
   for (const fn of suites) {
     try { await fn(); }
     catch (e) { pass(fn.name + ' 套件异常', false, e.message); }

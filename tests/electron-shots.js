@@ -13,19 +13,21 @@ fs.mkdirSync(OUT, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {
-  try { execSync('taskkill /F /T /IM electron.exe 2>nul'); } catch (e) {} // 清掉旧实例（/T 杀进程树，单例锁会挡调试端口）
-  await sleep(1200);
-  const appLog = fs.openSync(path.join(__dirname, 'electron-app.log'), 'w');
-  const app1 = spawn(ELECTRON, ['--remote-debugging-port=9222', '.'], { cwd: ROOT, stdio: ['ignore', appLog, appLog], detached: true });
-  // 连接重试：首次启动可能较慢
+  // 连接优先：已有常驻实例（带调试端口）直接用；没有才新起一个（约定：不杀进程、测试完保持运行）
   let browser = null;
-  for (let i = 0; i < 15 && !browser; i++) {
-    await sleep(1500);
-    try { browser = await puppeteer.connect({ browserURL: 'http://127.0.0.1:9222' }); } catch (e) { /* 还没起 */ }
+  try { browser = await puppeteer.connect({ browserURL: 'http://127.0.0.1:9222' }); } catch (e) {}
+  if (!browser) {
+    const appLog = fs.openSync(path.join(__dirname, 'electron-app.log'), 'w');
+    spawn(ELECTRON, ['--remote-debugging-port=9222', '.'], { cwd: ROOT, stdio: ['ignore', appLog, appLog], detached: true });
+    for (let i = 0; i < 15 && !browser; i++) {
+      await sleep(1500);
+      try { browser = await puppeteer.connect({ browserURL: 'http://127.0.0.1:9222' }); } catch (e) { /* 还没起 */ }
+    }
   }
   if (!browser) throw new Error('无法连接 Electron 调试端口（详见 electron-app.log）');
   const pages = await browser.pages();
   const page = pages.find(p => p.url().includes('index.html')) || pages[0];
+  await page.reload({ waitUntil: 'load' }); // 重载拿到最新代码
   await sleep(2500); // 等页面完全稳定再截图（避免捕获到启动过渡态）
   await page.screenshot({ path: path.join(OUT, 'frameless-normal.png') });
   console.log('saved frameless-normal.png');
@@ -45,6 +47,5 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   console.log('saved frameless-recall.png');
 
   browser.disconnect();
-  try { execSync('taskkill /F /IM electron.exe 2>nul'); } catch (e) {}
   process.exit(0);
-})().catch(e => { console.error('ERR', e.message); try { execSync('taskkill /F /IM electron.exe 2>nul'); } catch (e2) {} process.exit(1); });
+})().catch(e => { console.error("ERR", e.message); process.exit(1); });

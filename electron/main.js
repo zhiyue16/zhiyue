@@ -76,13 +76,15 @@ function createTray(){
 /* ================= Mini 浮窗（v1.27.0） =================
    遥控器架构：计时状态机只在主窗口渲染进程；浮窗是独立无边框 BrowserWindow，
    状态/命令都由主进程中转（rft:mini:state 下行 / rft:mini:cmd 上行） */
-let miniWin = null, miniSnapped = null, miniCollapsed = false, miniMoving = false;
-const MINI_W = 290, MINI_H = 185, MINI_H_MIN = 110, SNAP_W = 12; // 实测滴答清单尺寸；收起=仅隐藏底部统计栏(75px)，倒计时区域不动
+let miniWin = null, miniSnapped = null, miniCollapsed = false, miniMoving = false, miniEditorWin = null;
+const MINI_W = 193, MINI_H = 123, MINI_H_MIN = 73, SNAP_W = 12; // v1.28.2 整体缩 1/3（mini.html body zoom:.6667）
+const EDITOR_W = 250, EDITOR_H = 175; // 时长弹窗独立窗口（含阴影留白）
 
 function sendMiniSnap(){ if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:snap', miniSnapped); }
 
 function snapMiniTo(side){
   if(!miniWin) return;
+  closeMiniEditor(); // 吸附即关弹窗（浮窗位置/形态变化，锚点失效）
   const wa = screen.getPrimaryDisplay().workArea;
   const b = miniWin.getBounds();
   const h = Math.round(wa.height / 3);
@@ -99,6 +101,7 @@ function snapMiniTo(side){
 
 function onMiniMove(){
   if(miniMoving || !miniWin || miniWin.isDestroyed()) return;
+  closeMiniEditor(); // 拖动浮窗即关弹窗（弹窗位置锚定浮窗，拖动后锚点失效）
   const wa = screen.getPrimaryDisplay().workArea;
   const b = miniWin.getBounds();
   const SNAP = 8, UNSNAP = 28;
@@ -132,14 +135,46 @@ function createMiniWin(){
   miniWin.loadFile(path.join(__dirname, '..', 'mini.html'));
   miniWin.once('ready-to-show', () => { miniWin.show(); sendMiniSnap(); });
   miniWin.on('move', onMiniMove);
-  miniWin.once('closed', () => { miniWin = null; miniSnapped = null; updateTrayMenu(); });
+  miniWin.once('closed', () => { miniWin = null; miniSnapped = null; closeMiniEditor(); updateTrayMenu(); });
   updateTrayMenu();
 }
+
+/* 时长弹窗（v1.28.2）：独立小窗口，天然可显示在浮窗卡片之外（不存在"溢出"问题）。
+   锚点：浮窗渲染进程报来时间数字的窗内坐标，主进程换算屏幕坐标；阴影留白 36px 在 mini-editor.html 的 body padding */
+function closeMiniEditor(){ if(miniEditorWin && !miniEditorWin.isDestroyed()) miniEditorWin.close(); miniEditorWin = null; }
+ipcMain.on('rft:mini:editoropen', (e, anchor) => {
+  if(!miniWin || miniWin.isDestroyed() || miniSnapped || !anchor) return;
+  closeMiniEditor();
+  const b = miniWin.getBounds();
+  const wa = screen.getPrimaryDisplay().workArea;
+  const x = Math.max(wa.x, Math.min(b.x + (anchor.dx|0) - 36, wa.x + wa.width - EDITOR_W));
+  const y = Math.max(wa.y, Math.min(b.y + (anchor.dy|0) - 36, wa.y + wa.height - EDITOR_H));
+  miniEditorWin = new BrowserWindow({
+    width: EDITOR_W, height: EDITOR_H, x, y,
+    frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true,
+    show: false, transparent: true, backgroundThrottling: false,
+    icon: path.join(__dirname, '..', 'icon-512.png'),
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
+  });
+  const q = `?focus=${anchor.focus|0}&theme=${anchor.theme === 'dark' ? 'dark' : 'light'}&fest=${encodeURIComponent(anchor.fest || '')}`;
+  miniEditorWin.loadFile(path.join(__dirname, '..', 'mini-editor.html') , { search: q });
+  miniEditorWin.once('ready-to-show', () => { if(miniEditorWin && !miniEditorWin.isDestroyed()){ miniEditorWin.show(); miniEditorWin.focus(); } });
+  miniEditorWin.once('closed', () => { miniEditorWin = null; });
+});
+/* 弹窗结果：commit=钳制后转发主窗口 setFocus（与浮窗同一命令通道）；cancel=直接关 */
+ipcMain.on('rft:mini:editorcmd', (e, msg) => {
+  if(msg && msg.type === 'commit' && win && !win.isDestroyed()){
+    const v = Math.min(180, Math.max(5, msg.value|0));
+    win.webContents.send('rft:mini:cmd', { type: 'setFocus', payload: v });
+  }
+  closeMiniEditor();
+});
 
 ipcMain.on('rft:mini:open', createMiniWin);
 ipcMain.on('rft:mini:close', () => { if(miniWin) miniWin.close(); });
 ipcMain.on('rft:mini:collapse', (e, c) => {
   miniCollapsed = !!c;
+  closeMiniEditor(); // 收起/展开即关弹窗（浮窗高度变化，锚点失效）
   // 用 setBounds 而非 setSize：Windows + resizable:false 下 setSize 第二次调用会被忽略（v1.27.1 修复二次收起失效）
   if(miniWin && !miniSnapped){
     const b = miniWin.getBounds();
