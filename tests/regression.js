@@ -38,7 +38,16 @@ async function newPage(seed, query, electron, ctx) {
         windowMaxToggle: () => { window.__winMax = (window.__winMax||0)+1; },
         windowClose: () => { window.__winClose = (window.__winClose||0)+1; },
         windowIsMax: async () => !!window.__winIsMax,
-        onMaxChange: cb => { window.__maxCb = cb; } };
+        onMaxChange: cb => { window.__maxCb = cb; },
+        miniOpen: () => { window.__miniOpen = (window.__miniOpen||0)+1; },
+        miniClose: () => { window.__miniClose = (window.__miniClose||0)+1; },
+        miniCollapse: c => { window.__miniCollapse = c; }, miniReportSnap(){},
+        miniCmd: (t, p) => { (window.__miniCmds = window.__miniCmds||[]).push({ t, p }); },
+        onMiniCmd: cb => { window.__miniCmdCb = cb; },
+        miniState: s => { window.__miniState = s; },
+        onMiniState: cb => { window.__miniStateCb = cb; },
+        onMiniSnap: cb => { window.__miniSnapCb = cb; },
+        showMainWindow: () => { window.__showMain = (window.__showMain||0)+1; } };
     }
     if (seedStr) {
       const seed = JSON.parse(seedStr);
@@ -48,7 +57,9 @@ async function newPage(seed, query, electron, ctx) {
   }, seed ? JSON.stringify(seed) : null, !!electron);
   await page.setRequestInterception(true);
   page.on('request', r => { if (r.url().includes('hm.baidu.com')) r.abort(); else r.continue(); });
-  await page.goto(BASE + '/index.html' + (query || ''), { waitUntil: 'load' });
+  // query 以 'page:' 开头时加载指定页面（如 mini.html），否则默认 index.html
+  const target = query && query.startsWith('page:') ? query.slice(5) : 'index.html' + (query || '');
+  await page.goto(BASE + '/' + target, { waitUntil: 'load' });
   await sleep(400); // 等初始化 + 几个 worker tick
   return page;
 }
@@ -203,7 +214,7 @@ async function tRollover() {
   });
   pass('跨天: 今日计数清零', (await txt(page, 'statMinutes')) === '0' && (await txt(page, 'statRounds')) === '0');
   // 统计页里昨天数据还在
-  await page.click('#panelBtn'); await sleep(300);
+  await page.click('#panelBtn'); await page.click('#gmPanel'); await sleep(300);
   await page.click('.seg-btn[data-page="stats"]'); await sleep(300);
   pass('跨天: 统计页昨日数据保留', (await txt(page, 'ovTotalMins')) === '0h30m');
   pass('跨天: 热力图已渲染', (await page.$$eval('#heatGrid .heat-cell', els => els.length)) === 105);
@@ -440,7 +451,7 @@ async function tAchievement() {
   pass('成就: 里程碑横幅不自动收起', await shown(page, 'festBar'));
   pass('成就: 齿轮出现红点', await page.$eval('#unreadBadge', el => el.classList.contains('show')));
   await page.click('#festBar'); await sleep(400); // 先手动关闭 sticky 横幅（窄视口下它会盖住面板 seg 区，真实用户亦然）
-  await page.click('#panelBtn'); await sleep(300);
+  await page.click('#panelBtn'); await page.click('#gmPanel'); await sleep(300);
   await page.click('.seg-btn[data-page="achv"]'); await sleep(300);
   pass('成就: 成就标签页打开', await page.$eval('#pageAchv', el => el.classList.contains('active')));
   pass('成就: 进成就页后红点消除', !(await page.$eval('#unreadBadge', el => el.classList.contains('show'))));
@@ -477,7 +488,7 @@ async function tLayout() {
   pass('布局: 右灯笼不压药丸', lr.l >= bar.r - 1, '灯笼左缘 ' + Math.round(lr.l) + ' / 药丸右缘 ' + Math.round(bar.r));
   pass('布局: 左灯笼不压药丸', ll.r <= bar.l + 1, '灯笼右缘 ' + Math.round(ll.r) + ' / 药丸左缘 ' + Math.round(bar.l));
   // 面板展开：与药丸右缘对齐成组、在药丸正下方、不遮挡计时圆环
-  await page.click('#panelBtn'); await sleep(400);
+  await page.click('#panelBtn'); await page.click('#gmPanel'); await sleep(400);
   const panel = await rect('#panel');
   pass('布局: 面板与药丸右缘对齐成组', Math.abs(panel.r - bar.r) < 5, '面板右缘 ' + Math.round(panel.r) + ' / 药丸右缘 ' + Math.round(bar.r));
   pass('布局: 面板在药丸正下方', panel.t >= bar.b - 1, '面板顶 ' + Math.round(panel.t) + ' / 药丸底 ' + Math.round(bar.b));
@@ -488,7 +499,7 @@ async function tLayout() {
   for(const vw of [1440, 1280]){
     await page.setViewport({ width: vw, height: 900 });
     await page.goto(BASE + '/index.html?festdate=2026-10-01', { waitUntil: 'load' }); await sleep(500);
-    await page.click('#panelBtn'); await sleep(400);
+    await page.click('#panelBtn'); await page.click('#gmPanel'); await sleep(400);
     const pNat = await rect('#panel');
     let starHit = false;
     for(const s of ['.star.s1', '.star.s2', '.star.s3', '.star.s4']){
@@ -499,7 +510,7 @@ async function tLayout() {
   await page.setViewport({ width: 1440, height: 900 });
   // 中秋：月亮与面板无重叠
   await page.goto(BASE + '/index.html?festdate=2026-09-25', { waitUntil: 'load' }); await sleep(500);
-  await page.click('#panelBtn'); await sleep(400);
+  await page.click('#panelBtn'); await page.click('#gmPanel'); await sleep(400);
   pass('布局: 月亮与面板无重叠', !hit(await rect('.moon'), await rect('#panel')));
   await page.goto(BASE + '/index.html?updatedemo=2&festdate=2026-02-17', { waitUntil: 'load' }); await sleep(600);
   const ub = await rect('#updateBar'), fb = await rect('#festBar');
@@ -573,7 +584,7 @@ async function tElectronShim() {
   await sleep(1500); // 等 SW 注册窗口期（Electron 下应跳过）
   pass('Electron: SW 静默跳过注册', (await page.evaluate(async()=>!!(await navigator.serviceWorker.getRegistration()))) === false);
   pass('Electron: 自启开关显示', await page.$eval('#autoLaunchRow', el => el.style.display !== 'none'));
-  await page.click('#panelBtn'); await sleep(300); // 开关在设置面板内，先开面板（真实用户路径）
+  await page.click('#panelBtn'); await page.click('#gmPanel'); await sleep(300); // 开关在设置面板内，先开面板（真实用户路径）
   await page.click('#cfgAutoLaunch'); await sleep(250);
   pass('Electron: 自启开关切换生效', await page.evaluate(() => window.__autoLaunch === true));
   // --- 客户端检查更新（electron-updater 接管 about 行，v1.25.0） ---
@@ -604,7 +615,7 @@ async function tElectronShim() {
 }
 
 async function tFrameless() {
-  // 无边框窗口（v1.26.2）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
+  // 无边框窗口（v1.27.0）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
   let page = await newPage();
   pass('无边框: 网页版不显示窗口按钮', await page.$eval('#wcBar', el => getComputedStyle(el).display === 'none'));
   pass('无边框: 网页版无拖动区', await page.$eval('#dragStrip', el => getComputedStyle(el).display === 'none'));
@@ -631,7 +642,7 @@ async function tFrameless() {
   pass('无边框: 最大化按钮接线', await page.evaluate(() => window.__winMax === 1));
   await page.evaluate(() => window.__maxCb(true)); await sleep(100);
   pass('无边框: 最大化后图标切还原', await page.$eval('#wcMax', el => el.classList.contains('is-max')));
-  // 图标可见性断言（v1.26.2 修内联 display:none 压过 CSS 的 bug）
+  // 图标可见性断言（v1.27.0 修内联 display:none 压过 CSS 的 bug）
   pass('无边框: 最大化态显示还原图标', await page.evaluate(() => {
     const d = s => getComputedStyle(document.querySelector(s)).display;
     return d('.wc-ic-max') === 'none' && d('.wc-ic-restore') !== 'none';
@@ -653,7 +664,7 @@ async function tFrameless() {
 }
 
 async function tChimeLeftFix() {
-  // v1.26.2 修复验证（云 QA 发现的 P1）：暂停恢复后 chimeLeft 残留 → 加时后提示音提前响
+  // v1.27.0 修复验证（云 QA 发现的 P1）：暂停恢复后 chimeLeft 残留 → 加时后提示音提前响
   // 场景：focus=6、间隔固定1分钟。暂停→恢复（chimeLeft 被消费应清零）→ 响铃进 mini → mini 结束（剩余<5分钟尾段不再排铃）
   // → +5 分钟 → 若 chimeLeft 残留会被防御行错误重建为 ~30 秒后响（bug）；正确是按调度 ~60 秒后响
   const page = await newPage({ rft_cfg: cfg({ focus: 6, minInt: 1, maxInt: 1 }) });
@@ -675,6 +686,77 @@ async function tChimeLeftFix() {
   await warp(page, 30 * 1000);          // 到 ~65 秒（正确调度 60s 已过）
   pass('chimeLeft: 按正常调度响铃', await shown(page, 'chimePreview'));
   await page.close();
+}
+
+async function tMini() {
+  // 齿轮菜单（v1.27.0）：网页版弹菜单无 Mini 项；客户端有 Mini 项且命令驱动同一状态机
+  let page = await newPage();
+  await page.click('#panelBtn'); await sleep(250);
+  pass('Mini: 齿轮点击弹小菜单', await shown(page, 'gearMenu'));
+  pass('Mini: 菜单含「设置与统计」', (await txt(page, 'gmPanel')).includes('设置与统计'));
+  pass('Mini: 网页版隐藏 Mini 项', await page.$eval('#gmMini', el => getComputedStyle(el).display === 'none'));
+  pass('Mini: 弹菜单时面板未直接打开', !(await shown(page, 'panel')));
+  await page.keyboard.press('Escape'); await sleep(250);
+  pass('Mini: Esc 关闭菜单', !(await shown(page, 'gearMenu')));
+  await page.click('#panelBtn'); await sleep(250);
+  await page.click('#gmPanel'); await sleep(300);
+  pass('Mini: 菜单进设置面板', await shown(page, 'panel'));
+  await page.close();
+
+  const ctx = await browser.createBrowserContext();
+  page = await newPage({ rft_cfg: cfg({ focus: 5 }) }, '', true, ctx);
+  await page.click('#panelBtn'); await sleep(250);
+  pass('Mini: 客户端显示 Mini 项', await page.$eval('#gmMini', el => getComputedStyle(el).display !== 'none'));
+  await page.click('#gmMini'); await sleep(200);
+  pass('Mini: 点击调 miniOpen', await page.evaluate(() => window.__miniOpen === 1));
+  // 命令驱动：start → 专注中；pause → 暂停；stop(>30s) → 唤起主窗口+放弃框；setFocus 改时长
+  await page.evaluate(() => window.__miniCmdCb({ type: 'start' })); await sleep(300);
+  pass('Mini: cmd start 开始专注', (await phase(page)).includes('专注中'));
+  await warp(page, 40 * 1000); // 跑 40 秒
+  pass('Mini: 状态广播含 mode/leftMs', await page.evaluate(() => window.__miniState && window.__miniState.mode === 'focus' && window.__miniState.leftMs > 0));
+  await page.evaluate(() => window.__miniCmdCb({ type: 'pause' })); await sleep(300);
+  pass('Mini: cmd pause 暂停', (await phase(page)).includes('已暂停'));
+  await page.evaluate(() => window.__miniCmdCb({ type: 'pause' })); await sleep(300);
+  await page.evaluate(() => window.__miniCmdCb({ type: 'stop' })); await sleep(300);
+  pass('Mini: cmd stop 弹放弃框', await shown(page, 'abandonMask'));
+  pass('Mini: >30s stop 唤起主窗口', await page.evaluate(() => window.__showMain >= 1));
+  await page.click('#abandonOk'); await sleep(300);
+  await page.evaluate(() => window.__miniCmdCb({ type: 'setFocus', payload: 45 })); await sleep(300);
+  pass('Mini: cmd setFocus 改时长为 45', (await txt(page, 'timeText')) === '45:00');
+  await page.close();
+  await ctx.close();
+}
+
+async function tMiniWin() {
+  // mini.html 浮窗 UI（v1.27.0）：直接加载浮窗页 + 桩驱动广播
+  const ctx = await browser.createBrowserContext();
+  const page = await newPage(null, 'page:mini.html', true, ctx);
+  const push = s => page.evaluate(x => window.__miniStateCb(x), s);
+  const idleSt = { mode:'idle', paused:false, leftMs:0, totalMs:0, minutes:12, weekMins:300, focus:25, theme:'light', fest:'' };
+  await push(idleSt); await sleep(250);
+  pass('Mini窗: idle 态显示设定时长', (await page.$eval('#mTime', el => el.textContent)) === '25:00');
+  pass('Mini窗: idle 态今日/本周数据', (await page.$eval('#mToday', el => el.textContent)) === '12m'
+       && (await page.$eval('#mWeek', el => el.textContent)) === '5h');
+  pass('Mini窗: 播放三角未被旋转拉伸', await page.$eval('#mIcPlay', el => getComputedStyle(el).transform === 'none'));
+  await push({ ...idleSt, mode:'focus', leftMs: 298000, totalMs: 300000 }); await sleep(250);
+  pass('Mini窗: 计时中显示倒计时', (await page.$eval('#mTime', el => el.textContent)) === '04:58');
+  pass('Mini窗: 计时中暂停图标+外侧停止钮', await page.$eval('#mIcPause', el => !el.hidden)
+       && await page.$eval('#mStop', el => !el.hidden));
+  await push({ ...idleSt, mode:'focus', paused:true, leftMs: 298000, totalMs: 300000 }); await sleep(250);
+  pass('Mini窗: 暂停态恢复/结束收进圆环', await page.$eval('#mPausedBtns', el => !el.hidden)
+       && await page.$eval('#mPlay', el => getComputedStyle(el).display === 'none')
+       && await page.$eval('#mStop', el => el.hidden));
+  await page.click('#mResume'); await sleep(150);
+  pass('Mini窗: 环内恢复钮发 pause 命令', await page.evaluate(() => window.__miniCmds.some(c => c.t === 'pause')));
+  await page.click('#mStopIn'); await sleep(150);
+  pass('Mini窗: 环内结束钮发 stop 命令', await page.evaluate(() => window.__miniCmds.some(c => c.t === 'stop')));
+  await page.click('#mCloseWin'); await sleep(150);
+  pass('Mini窗: 右上角关闭钮生效', await page.evaluate(() => window.__miniClose === 1));
+  await page.click('#mMore'); await sleep(150);
+  pass('Mini窗: ···菜单两项', (await page.$eval('#mOpenMain', el => el.textContent)).includes('打开主窗口')
+       && (await page.$eval('#mCloseMini', el => el.textContent)).includes('关闭浮窗'));
+  await page.close();
+  await ctx.close();
 }
 
 async function tSwAndMisc() {
@@ -717,7 +799,7 @@ async function tSwAndMisc() {
   const suites = [tMainFlow, tAbandon2min, tAbandon7min, tContinuous, tPreviewPostpone,
                   tPauseDuringPreview, tThemeLock, tLogsAndGoal, tRollover, tSchemaMigration,
                   tFestival, tMilestones, tUpdateBar, tDeco, tFixesV120, tAchievement, tLayout,
-                  tThemeRipple, tElectronShim, tFrameless, tChimeLeftFix, tSwAndMisc];
+                  tThemeRipple, tElectronShim, tFrameless, tChimeLeftFix, tMini, tMiniWin, tSwAndMisc];
   for (const fn of suites) {
     try { await fn(); }
     catch (e) { pass(fn.name + ' 套件异常', false, e.message); }

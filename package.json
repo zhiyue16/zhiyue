@@ -1,6 +1,6 @@
 {
   "name": "random-focus-timer",
-  "version": "1.26.2",
+  "version": "1.27.0",
   "description": "随机提示音专注计时器 · 桌面客户端（Electron 壳，网页代码原样复用）",
   "main": "electron/main.js",
   "author": "纸月十六",
@@ -32,6 +32,7 @@
       "version.json",
       "icon-192.png",
       "icon-512.png",
+      "mini.html",
       "electron/**/*"
     ],
     "win": {

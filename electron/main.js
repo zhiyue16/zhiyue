@@ -2,7 +2,7 @@
 // 关键模式参考 Stretchly（github.com/hovancik/stretchly）：
 //   单例窗口 + show:false/ready-to-show 防白闪 + window-all-closed 空函数托盘驻留
 //   + setAppUserModelId（Windows 通知归属）+ setLoginItemSettings 自启
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, globalShortcut, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, globalShortcut, nativeImage, screen } = require('electron');
 const path = require('path');
 
 const APP_ID = 'com.zhiyue.focustimer'; // 必须与 package.json build.appId 一致，否则 Windows 通知丢应用名/图标
@@ -54,17 +54,98 @@ ipcMain.on('rft:win:max', () => { if(win) win.isMaximized() ? win.unmaximize() :
 ipcMain.on('rft:win:close', () => { if(win) win.close(); });
 ipcMain.handle('rft:win:isMax', () => win ? win.isMaximized() : false);
 
+function updateTrayMenu(){
+  if(!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示主窗口', click: showWin },
+    { label: 'Mini 浮窗', type: 'checkbox', checked: !!miniWin,
+      click: () => miniWin ? miniWin.close() : createMiniWin() },
+    { type: 'separator' },
+    { label: '退出', click: () => { isQuitting = true; app.quit(); } }
+  ]));
+}
+
 function createTray(){
   const img = nativeImage.createFromPath(path.join(__dirname, '..', 'icon-192.png')).resize({ width: 32 });
   tray = new Tray(img);
   tray.setToolTip('随机提示音专注计时器');
   tray.on('click', toggleWin); // 左键单击呼出/隐藏主窗口
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '显示主窗口', click: showWin },
-    { type: 'separator' },
-    { label: '退出', click: () => { isQuitting = true; app.quit(); } }
-  ]));
+  updateTrayMenu();
 }
+
+/* ================= Mini 浮窗（v1.27.0） =================
+   遥控器架构：计时状态机只在主窗口渲染进程；浮窗是独立无边框 BrowserWindow，
+   状态/命令都由主进程中转（rft:mini:state 下行 / rft:mini:cmd 上行） */
+let miniWin = null, miniSnapped = null, miniCollapsed = false, miniMoving = false;
+const MINI_W = 330, MINI_H = 250, MINI_H_MIN = 110, SNAP_W = 12;
+
+function sendMiniSnap(){ if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:snap', miniSnapped); }
+
+function snapMiniTo(side){
+  if(!miniWin) return;
+  const wa = screen.getPrimaryDisplay().workArea;
+  const b = miniWin.getBounds();
+  const h = Math.round(wa.height / 3);
+  miniSnapped = side;
+  miniMoving = true;
+  miniWin.setBounds({ // 贴边竖条：宽 12px、高约屏幕 1/3、垂直方向以拖动点为中心
+    x: side === 'left' ? wa.x : wa.x + wa.width - SNAP_W,
+    y: Math.max(wa.y, Math.min(Math.round(b.y + b.height/2 - h/2), wa.y + wa.height - h)),
+    width: SNAP_W, height: h
+  });
+  miniMoving = false;
+  sendMiniSnap();
+}
+
+function onMiniMove(){
+  if(miniMoving || !miniWin || miniWin.isDestroyed()) return;
+  const wa = screen.getPrimaryDisplay().workArea;
+  const b = miniWin.getBounds();
+  const SNAP = 8, UNSNAP = 28;
+  if(miniSnapped){ // 吸附中：拖离边缘则恢复正常浮窗
+    const nearLeft = b.x <= wa.x + UNSNAP, nearRight = b.x + b.width >= wa.x + wa.width - UNSNAP;
+    if(!nearLeft && !nearRight){
+      miniSnapped = null;
+      const w = MINI_W, h = miniCollapsed ? MINI_H_MIN : MINI_H;
+      miniMoving = true;
+      miniWin.setBounds({ x: Math.round(b.x + b.width/2 - w/2), y: b.y, width: w, height: h });
+      miniMoving = false;
+      sendMiniSnap();
+    }
+    return;
+  }
+  if(b.x <= wa.x + SNAP) snapMiniTo('left');
+  else if(b.x + b.width >= wa.x + wa.width - SNAP) snapMiniTo('right');
+}
+
+function createMiniWin(){
+  if(miniWin && !miniWin.isDestroyed()){ miniWin.show(); return; }
+  miniWin = new BrowserWindow({
+    width: MINI_W, height: MINI_H,
+    frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true,
+    show: false,
+    backgroundThrottling: false,
+    backgroundColor: '#f4f4f7',
+    icon: path.join(__dirname, '..', 'icon-512.png'),
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true }
+  });
+  miniWin.loadFile(path.join(__dirname, '..', 'mini.html'));
+  miniWin.once('ready-to-show', () => { miniWin.show(); sendMiniSnap(); });
+  miniWin.on('move', onMiniMove);
+  miniWin.once('closed', () => { miniWin = null; miniSnapped = null; updateTrayMenu(); });
+  updateTrayMenu();
+}
+
+ipcMain.on('rft:mini:open', createMiniWin);
+ipcMain.on('rft:mini:close', () => { if(miniWin) miniWin.close(); });
+ipcMain.on('rft:mini:collapse', (e, c) => {
+  miniCollapsed = !!c;
+  if(miniWin && !miniSnapped) miniWin.setSize(MINI_W, miniCollapsed ? MINI_H_MIN : MINI_H);
+});
+ipcMain.on('rft:mini:snapstate', (e, side) => { if(side && miniWin) snapMiniTo(side); }); // 浮窗启动时回报记忆的吸附侧
+ipcMain.on('rft:mini:cmd', (e, cmd) => { if(win && !win.isDestroyed()) win.webContents.send('rft:mini:cmd', cmd); });
+ipcMain.on('rft:mini:state', (e, s) => { if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:state', s); });
+ipcMain.on('rft:win:show', showWin);
 
 /* 原生通知：渲染进程经 preload 的 electronAPI.notify(kind) → 此通道。
    点击通知唤起主窗口 */

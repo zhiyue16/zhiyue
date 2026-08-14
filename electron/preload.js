@@ -19,5 +19,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMaxToggle: () => ipcRenderer.send('rft:win:max'),
   windowClose: () => ipcRenderer.send('rft:win:close'),
   windowIsMax: () => ipcRenderer.invoke('rft:win:isMax'),
-  onMaxChange: (cb) => ipcRenderer.on('rft:win:max-changed', (e, v) => cb(v))
+  onMaxChange: (cb) => ipcRenderer.on('rft:win:max-changed', (e, v) => cb(v)),
+  // Mini 浮窗（v1.27.0）：浮窗=遥控器，状态机在主窗口，主进程中转
+  miniOpen: () => ipcRenderer.send('rft:mini:open'),
+  miniClose: () => ipcRenderer.send('rft:mini:close'),
+  miniCollapse: (collapsed) => ipcRenderer.send('rft:mini:collapse', collapsed),
+  miniReportSnap: (side) => ipcRenderer.send('rft:mini:snapstate', side),
+  miniCmd: (type, payload) => ipcRenderer.send('rft:mini:cmd', { type, payload }),
+  onMiniCmd: (cb) => ipcRenderer.on('rft:mini:cmd', (e, c) => cb(c)),
+  miniState: (s) => ipcRenderer.send('rft:mini:state', s),
+  onMiniState: (cb) => ipcRenderer.on('rft:mini:state', (e, s) => cb(s)),
+  onMiniSnap: (cb) => ipcRenderer.on('rft:mini:snap', (e, v) => cb(v)),
+  showMainWindow: () => ipcRenderer.send('rft:win:show')
 });

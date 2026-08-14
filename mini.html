@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<!-- Mini 浮窗（v1.27.0）：纯遥控器，无计时逻辑。
+     状态来自主窗口经主进程转发的 rft:mini:state 广播；按钮经 rft:mini:cmd 调主窗口同一套计时函数。
+     计时状态机只在主窗口（index.html），此处禁止任何 setInterval 计时 -->
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>专注计时器 Mini</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --bg:#f4f4f7; --text:#1d1d1f; --sub:#86868b; --accent:#007aff; --green:#28c840; --red:#ff453a;
+    --pill:rgba(255,255,255,.72); --pill-border:rgba(255,255,255,.8); --hairline:rgba(0,0,0,.06);
+    --input-bg:rgba(118,118,128,.1); --shadow-pop:0 24px 70px rgba(0,0,0,.18), 0 4px 12px rgba(0,0,0,.07);
+  }
+  html[data-theme="dark"]{
+    --bg:#0a0a0d; --text:#f5f5f7; --sub:#98989f; --accent:#0a84ff; --green:#32d74b; --red:#ff6961;
+    --pill:rgba(32,32,36,.72); --pill-border:rgba(255,255,255,.09); --hairline:rgba(255,255,255,.09);
+    --input-bg:rgba(118,118,128,.18); --shadow-pop:0 24px 70px rgba(0,0,0,.6), 0 4px 12px rgba(0,0,0,.4);
+  }
+  /* 节日限定（与主项目同色系，广播同步 data-fest） */
+  html[data-fest="spring"] body{ background:linear-gradient(165deg,#6f0a16,#b01e2c 52%,#d94a3a); }
+  html[data-theme="dark"][data-fest="spring"] body{ background:linear-gradient(165deg,#38040b,#7d1020 55%,#a51a28); }
+  html[data-fest="spring"]{ --text:#fff5e0; --sub:#f3d3a0; --accent:#ffd23f; --green:#ffd23f; --pill:rgba(70,6,14,.72); --pill-border:rgba(255,210,63,.3); --hairline:rgba(255,235,190,.18); --input-bg:rgba(255,235,190,.13); }
+  html[data-fest="national"] body{ background:linear-gradient(150deg,#8f0f1f,#ce1526 55%,#e64a33); }
+  html[data-theme="dark"][data-fest="national"] body{ background:linear-gradient(150deg,#420710,#8f0f1f 55%,#b41825); }
+  html[data-fest="national"]{ --text:#fff6e8; --sub:#f5d6b0; --accent:#ffdd44; --green:#ffdd44; --pill:rgba(66,7,16,.72); --pill-border:rgba(255,221,68,.3); --hairline:rgba(255,240,200,.18); --input-bg:rgba(255,240,200,.13); }
+  html[data-fest="midautumn"] body{ background:linear-gradient(165deg,#232f55,#3a4a7d 55%,#655a8f); }
+  html[data-theme="dark"][data-fest="midautumn"] body{ background:linear-gradient(165deg,#0d1330,#1f2a52 55%,#3d3566); }
+  html[data-fest="midautumn"]{ --text:#f6f1e2; --sub:#cdc6e0; --accent:#ffd873; --green:#ffd873; --pill:rgba(14,18,40,.72); --pill-border:rgba(255,216,115,.28); --hairline:rgba(230,230,255,.16); --input-bg:rgba(230,230,255,.12); }
+  html,body{ height:100%; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--text); overflow:hidden; user-select:none;
+    transition:background .4s;
+  }
+  /* ---------- 卡片（展开/收起共用） ---------- */
+  .card{
+    height:100vh; display:flex; flex-direction:column; padding:12px 16px 0;
+    -webkit-app-region:drag; /* 卡片主体可拖动 */
+  }
+  .card > *{ -webkit-app-region:no-drag; }
+  .m-top{ display:flex; align-items:center; justify-content:space-between; height:26px; }
+  .m-phase{ font-size:12.5px; font-weight:600; color:var(--sub); letter-spacing:1px; }
+  .m-actions{ display:flex; gap:6px; }
+  .m-icbtn{
+    width:24px; height:24px; border:none; border-radius:50%; cursor:pointer; font-family:inherit;
+    background:var(--input-bg); color:var(--sub); font-size:12px; line-height:1;
+    display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s;
+  }
+  .m-icbtn:hover{ color:var(--text); }
+  .m-mid{ flex:1; display:flex; align-items:center; gap:16px; min-height:0; padding:2px 2px 0; }
+  .m-ring{ position:relative; width:92px; height:92px; flex-shrink:0; }
+  .m-ring > svg{ width:100%; height:100%; transform:rotate(-90deg); } /* 直接子代：勿波及内部按钮图标（v1.27.0 修三角被旋转） */
+  .m-ring .rg-bg{ fill:none; stroke:var(--hairline); stroke-width:7; }
+  .m-ring .rg-fg{ fill:none; stroke:var(--green); stroke-width:7; stroke-linecap:round; transition:stroke-dashoffset .3s linear; }
+  .m-ring.resting .rg-fg{ stroke:var(--red); }
+  .m-play{
+    position:absolute; inset:10px; border:none; border-radius:50%; cursor:pointer;
+    background:var(--input-bg); color:var(--accent); display:flex; align-items:center; justify-content:center;
+    transition:transform .12s, filter .15s;
+  }
+  .m-play:hover{ filter:brightness(1.08); }
+  .m-play:active{ transform:scale(.93); }
+  /* 暂停态：恢复/结束双小钮收进圆环内（v1.27.0） */
+  .m-paused-btns{
+    position:absolute; inset:10px; display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .m-paused-btns button{
+    width:27px; height:27px; border:none; border-radius:50%; cursor:pointer;
+    background:var(--input-bg); color:var(--accent); font-size:11px;
+    display:flex; align-items:center; justify-content:center; transition:transform .12s, filter .15s;
+  }
+  .m-paused-btns button:hover{ filter:brightness(1.1); }
+  .m-paused-btns button:active{ transform:scale(.9); }
+  .m-paused-btns #mStopIn{ color:var(--red); background:rgba(255,69,58,.14); }
+  .m-right{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
+  .m-time{
+    font-size:34px; font-weight:600; letter-spacing:.5px; line-height:1; border-radius:8px;
+    font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; cursor:default; padding:2px 4px;
+  }
+  .m-time.clickable{ cursor:pointer; }
+  .m-time.clickable:hover{ background:var(--input-bg); }
+  .m-stop{
+    width:26px; height:26px; border:none; border-radius:50%; cursor:pointer; flex-shrink:0;
+    background:rgba(255,69,58,.14); color:var(--red); font-size:11px;
+    display:flex; align-items:center; justify-content:center; transition:filter .15s, transform .12s;
+  }
+  .m-stop:hover{ filter:brightness(1.1); }
+  .m-stop:active{ transform:scale(.92); }
+  .m-stop[hidden]{ display:none; }
+  .m-bottom{
+    display:flex; border-top:1px solid var(--hairline); margin-top:8px; padding:10px 4px 0; height:58px;
+  }
+  .m-stat{ flex:1; text-align:center; }
+  .m-stat + .m-stat{ border-left:1px solid var(--hairline); }
+  .m-stat .l{ font-size:11px; color:var(--sub); }
+  .m-stat .v{ font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .card.collapsed .m-bottom{ display:none; }
+  /* 收起/展开图标方向 */
+  #mCollapse .arr{ display:inline-block; transition:transform .2s; }
+  .card.collapsed #mCollapse .arr{ transform:rotate(180deg); }
+  /* ---------- ···菜单 / 时长编辑 ---------- */
+  .m-menu,.m-editor{
+    position:fixed; z-index:10; background:var(--pill); border:1px solid var(--pill-border);
+    border-radius:12px; box-shadow:var(--shadow-pop); padding:5px;
+  }
+  .m-menu{ top:34px; right:12px; min-width:118px; }
+  .m-menu button{
+    display:block; width:100%; border:none; background:transparent; color:var(--text);
+    font-size:12.5px; font-weight:500; text-align:left; padding:7px 10px; border-radius:8px;
+    cursor:pointer; font-family:inherit;
+  }
+  .m-menu button:hover{ background:var(--input-bg); }
+  .m-editor{ top:64px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:6px; padding:8px 10px; }
+  .m-editor input{
+    width:64px; border:2px solid var(--accent); border-radius:8px; outline:none; text-align:center;
+    background:var(--input-bg); color:var(--text); font-size:15px; font-weight:700; padding:4px 6px; font-family:inherit;
+  }
+  .m-editor span{ font-size:12px; color:var(--sub); }
+  [hidden]{ display:none !important; }
+  /* ---------- 吸附竖条（宽 12px，填充=进度，从下到上） ---------- */
+  .strip{ display:none; position:fixed; inset:0; border-radius:6px; overflow:hidden;
+    background:var(--pill); border:1px solid var(--pill-border); -webkit-app-region:drag; }
+  body.snapped .strip{ display:block; }
+  body.snapped .card{ display:none; }
+  .strip .fill{
+    position:absolute; inset:0; background:var(--accent); transform-origin:bottom;
+    transform:scaleY(0); transition:transform .3s linear;
+  }
+  @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="m-top">
+      <span class="m-phase" id="mPhase">准备开始</span>
+      <span class="m-actions">
+        <button type="button" class="m-icbtn" id="mCollapse" title="收起 / 展开" aria-label="收起或展开"><span class="arr">⌃</span></button>
+        <button type="button" class="m-icbtn" id="mMore" title="更多" aria-label="更多">···</button>
+        <button type="button" class="m-icbtn" id="mCloseWin" title="关闭浮窗" aria-label="关闭浮窗">✕</button>
+      </span>
+    </div>
+    <div class="m-mid">
+      <div class="m-ring" id="mRing">
+        <svg viewBox="0 0 92 92" aria-hidden="true">
+          <circle class="rg-bg" cx="46" cy="46" r="42"></circle>
+          <circle class="rg-fg" id="mRingFg" cx="46" cy="46" r="42"></circle>
+        </svg>
+        <button type="button" class="m-play" id="mPlay" title="开始 / 暂停" aria-label="开始或暂停">
+          <svg id="mIcPlay" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5.5 L19 12 L8 18.5 Z" fill="currentColor"/></svg>
+          <svg id="mIcPause" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" hidden><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>
+        </button>
+        <!-- 暂停态：恢复/结束收进圆环内 -->
+        <div class="m-paused-btns" id="mPausedBtns" hidden>
+          <button type="button" id="mResume" title="继续" aria-label="继续">
+            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M8 5.5 L19 12 L8 18.5 Z" fill="currentColor"/></svg>
+          </button>
+          <button type="button" id="mStopIn" title="结束本轮" aria-label="结束本轮">
+            <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="m-right">
+        <span class="m-time" id="mTime" title="点击设置专注时长">90:00</span>
+        <button type="button" class="m-stop" id="mStop" title="结束本轮" aria-label="结束本轮" hidden>■</button>
+      </div>
+    </div>
+    <div class="m-bottom" id="mBottom">
+      <div class="m-stat"><div class="l">今日专注</div><div class="v" id="mToday">0m</div></div>
+      <div class="m-stat"><div class="l">本周专注</div><div class="v" id="mWeek">0h</div></div>
+    </div>
+  </div>
+  <div class="strip" id="strip"><div class="fill" id="stripFill"></div></div>
+  <div class="m-menu" id="mMenu" hidden>
+    <button type="button" id="mOpenMain">打开主窗口</button>
+    <button type="button" id="mCloseMini">关闭浮窗</button>
+  </div>
+  <div class="m-editor" id="mEditor" hidden>
+    <input type="number" id="mFocusInput" min="5" max="180" step="1" aria-label="专注时长（分钟）">
+    <span>分钟（5~180，Enter 确认）</span>
+  </div>
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const api = window.electronAPI;
+if(!api){ document.body.innerHTML = '<div style="padding:20px;font-size:13px;">Mini 浮窗仅在桌面客户端可用</div>'; return; }
+const LS = { get(k,d){ try{ const v = JSON.parse(localStorage.getItem(k)); return v==null?d:v; }catch(e){ return d; } },
+             set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
+const pad = n => String(n).padStart(2,'0');
+const fmt = ms => { const s = Math.max(0, Math.ceil(ms/1000)); return pad(Math.floor(s/60))+':'+pad(s%60); };
+const CIRC = 2*Math.PI*42;
+$('mRingFg').style.strokeDasharray = CIRC;
+
+let st = { mode:'idle', paused:false, leftMs:0, totalMs:0, minutes:0, weekMins:0, focus:90, theme:'light', fest:'' };
+let collapsed = !!LS.get('rft_mini_collapsed', false);
+let snapped = LS.get('rft_mini_snap', null); // 'left' | 'right' | null
+
+const PHASE = { idle:'准备开始', focus:'专注中', mini:'闭眼休息', focusDone:'专注完成', rest:'休息中', restDone:'休息结束' };
+
+function render(){
+  const m = st.mode, running = ['focus','mini','rest'].includes(m);
+  const pausedState = st.paused && running;
+  $('mPhase').textContent = (PHASE[m]||'') + (pausedState ? '（已暂停）' : '');
+  $('mTime').textContent = m==='idle' ? pad(st.focus)+':00'
+    : (m==='focusDone' || m==='restDone') ? '00:00' : fmt(st.leftMs);
+  const prog = m==='idle' ? 0 : (m==='focusDone'||m==='restDone') ? 1
+    : (st.totalMs ? Math.min(1, Math.max(0, 1 - st.leftMs/st.totalMs)) : 0);
+  $('mRingFg').style.strokeDashoffset = CIRC * (1 - prog);
+  $('mRing').classList.toggle('resting', m==='rest');
+  // 圆环内按钮：运行中大暂停钮；暂停时换恢复/结束双小钮
+  $('mPlay').style.display = pausedState ? 'none' : 'flex';
+  $('mPausedBtns').hidden = !pausedState;
+  $('mIcPlay').style.display = (running && !st.paused) ? 'none' : 'block';
+  $('mIcPause').hidden = !(running && !st.paused);
+  $('mStop').hidden = !((m==='focus' || m==='mini') && !st.paused); // 外侧停止钮仅运行中；暂停时收进圆环
+  $('mTime').classList.toggle('clickable', m==='idle');
+  $('mToday').textContent = st.minutes + 'm';
+  $('mWeek').textContent = st.weekMins >= 60 ? Math.floor(st.weekMins/60) + 'h' + (st.weekMins%60 ? (st.weekMins%60)+'m' : '') : st.weekMins + 'm';
+  $('stripFill').style.transform = 'scaleY(' + prog + ')'; // 吸附竖条：从下到上填充=进度
+}
+function applyTheme(){ // 广播里的 theme/fest 同步到浮窗（与主窗口一致，含节日）
+  document.documentElement.setAttribute('data-theme', st.theme==='dark' ? 'dark' : 'light');
+  if(st.fest) document.documentElement.setAttribute('data-fest', st.fest);
+  else document.documentElement.removeAttribute('data-fest');
+}
+api.onMiniState(s => { st = s; applyTheme(); render(); });
+
+/* 吸附：主进程 move 监听判定后发 rft:mini:snap；侧别记忆在 rft_mini_snap */
+api.onMiniSnap(v => {
+  snapped = v;
+  LS.set('rft_mini_snap', v);
+  document.body.classList.toggle('snapped', !!v);
+});
+if(snapped) api.miniReportSnap(snapped); // 启动恢复吸附
+if(collapsed){ $('card').classList.add('collapsed'); api.miniCollapse(true); }
+
+/* 命令（全部转发主窗口执行，本页无计时逻辑） */
+$('mPlay').addEventListener('click', () => {
+  const m = st.mode;
+  if(m==='idle') api.miniCmd('start');
+  else if(m==='focusDone') api.miniCmd('rest');
+  else if(m==='restDone') api.miniCmd('idle');
+  else api.miniCmd('pause');
+});
+$('mStop').addEventListener('click', () => api.miniCmd('stop'));
+$('mResume').addEventListener('click', () => api.miniCmd('pause'));
+$('mStopIn').addEventListener('click', () => api.miniCmd('stop'));
+$('mCloseWin').addEventListener('click', () => api.miniClose());
+$('mCollapse').addEventListener('click', () => {
+  collapsed = !collapsed;
+  LS.set('rft_mini_collapsed', collapsed);
+  $('card').classList.toggle('collapsed', collapsed);
+  api.miniCollapse(collapsed);
+});
+/* ···菜单 */
+const menu = $('mMenu');
+$('mMore').addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+$('mOpenMain').addEventListener('click', () => { menu.hidden = true; api.showMainWindow(); });
+$('mCloseMini').addEventListener('click', () => api.miniClose());
+document.addEventListener('click', e => { if(!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
+/* 时长编辑（仅 idle）：与主窗口同一套 5~180 钳制，经 setFocus 命令生效 */
+const editor = $('mEditor'), finput = $('mFocusInput');
+$('mTime').addEventListener('click', () => {
+  if(st.mode !== 'idle') return;
+  finput.value = st.focus;
+  editor.hidden = false;
+  setTimeout(() => { finput.focus(); finput.select(); }, 30);
+});
+function commitFocus(){
+  if(editor.hidden) return;
+  const v = parseInt(finput.value, 10);
+  if(!Number.isNaN(v)) api.miniCmd('setFocus', Math.min(180, Math.max(5, v)));
+  editor.hidden = true;
+}
+finput.addEventListener('keydown', e => { if(e.key==='Enter') commitFocus(); if(e.key==='Escape') editor.hidden = true; });
+finput.addEventListener('blur', commitFocus);
+document.addEventListener('keydown', e => { if(e.key==='Escape'){ menu.hidden = true; editor.hidden = true; } });
+render();
+})();
+</script>
+</body>
+</html>

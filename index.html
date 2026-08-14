@@ -414,7 +414,7 @@ var _hmt = _hmt || [];
   }
   /* 避让 updateBar（v1.20.0）：更新提示条显示期间横幅下移，防止顶部叠放。
      弹窗层级表（从低到高，新组件按此插入）：
-     deco 装饰(0) → stats-bar(2) → scrim(20) → panel(30) → abandon-mask(50) → goal-mask(55) → fd-mask(58) → fest-bar(190) → update-bar(200) → theme-ripple(300) */
+     deco 装饰(0) → stats-bar(2) → scrim(20) → panel(30) → gear-menu(35) → abandon-mask(50) → goal-mask(55) → fd-mask(58) → fest-bar(190) → update-bar(200) → theme-ripple(300) */
   .fest-bar.lower{ top:170px; }
   .fest-bar .fb-line + .fb-line{ margin-top:4px; padding-top:4px; border-top:1px solid var(--hairline); }
   /* 放弃确认弹窗 */
@@ -604,6 +604,22 @@ var _hmt = _hmt || [];
   .stat.c-blue .num{ color:var(--accent); }
   .stat.c-orange .num{ color:#ff9f0a; }
   /* ---------- 二级面板（设置 / 记录） ---------- */
+  /* ---------- 齿轮小菜单（v1.27.0）：齿轮点击先弹菜单（设置与统计 / Mini 模式），z-35 位于 panel(30) 之上 ---------- */
+  .gear-menu{
+    position:fixed; z-index:35; min-width:132px; padding:5px;
+    background:var(--pill); border:1px solid var(--pill-border); border-radius:13px;
+    backdrop-filter:blur(40px) saturate(1.8); -webkit-backdrop-filter:blur(40px) saturate(1.8);
+    box-shadow:var(--shadow-pop);
+    opacity:0; transform:translateY(-6px) scale(.97); transform-origin:top right;
+    pointer-events:none; transition:opacity .18s, transform .18s;
+  }
+  .gear-menu.show{ opacity:1; transform:none; pointer-events:auto; }
+  .gm-item{
+    display:block; width:100%; border:none; background:transparent; color:var(--text);
+    font-size:13px; font-weight:500; text-align:left; padding:8px 12px; border-radius:9px;
+    cursor:pointer; font-family:inherit; transition:background .15s;
+  }
+  .gm-item:hover{ background:var(--input-bg); }
   .scrim{
     position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.08);
     opacity:0; pointer-events:none; transition:opacity .22s;
@@ -990,6 +1006,11 @@ var _hmt = _hmt || [];
   </div>
   <!-- 二级面板：设置 / 记录 -->
   <div class="scrim" id="scrim"></div>
+  <!-- 齿轮小菜单（v1.27.0）：设置与统计 / Mini 模式（仅客户端） -->
+  <div class="gear-menu" id="gearMenu" role="menu">
+    <button type="button" class="gm-item" id="gmPanel">设置与统计</button>
+    <button type="button" class="gm-item" id="gmMini" style="display:none;">Mini 模式</button>
+  </div>
   <div class="panel" id="panel" role="dialog" aria-label="设置与记录">
     <div class="seg">
       <button type="button" class="seg-btn active" data-page="settings">设置</button>
@@ -1052,7 +1073,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.26.2</span>
+            <span>版本 v1.27.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
@@ -1221,9 +1242,24 @@ applyTheme();
 /* ================= 二级面板（设置 / 记录） ================= */
 function openPanel(){ $('panel').classList.add('show'); $('scrim').classList.add('show'); $('panelBtn').classList.add('active','spin'); }
 function closePanel(){ $('panel').classList.remove('show'); $('scrim').classList.remove('show'); $('panelBtn').classList.remove('active','spin'); }
+/* 齿轮小菜单（v1.27.0）：点击齿轮先弹菜单（设置与统计 / Mini 模式仅客户端），点外/Esc 关闭 */
+function openGearMenu(){
+  const r = $('panelBtn').getBoundingClientRect();
+  const m = $('gearMenu');
+  m.style.top = (r.bottom + 8) + 'px';
+  m.style.left = (r.right - m.offsetWidth) + 'px'; // 右缘对齐齿轮
+  m.classList.add('show');
+  $('panelBtn').classList.add('active','spin');
+}
+function closeGearMenu(){
+  $('gearMenu').classList.remove('show');
+  if(!$('panel').classList.contains('show')) $('panelBtn').classList.remove('active','spin');
+}
 $('panelBtn').addEventListener('click', e=>{ e.stopPropagation();
-  $('panelBtn').classList.toggle('spin', !$('panel').classList.contains('show')); // 齿轮随开合旋转
-  $('panel').classList.contains('show') ? closePanel() : openPanel(); });
+  $('gearMenu').classList.contains('show') ? closeGearMenu() : openGearMenu(); });
+$('gmPanel').addEventListener('click', ()=>{ closeGearMenu(); openPanel(); });
+$('gmMini').addEventListener('click', ()=>{ closeGearMenu(); if(isElectron) window.electronAPI.miniOpen(); }); // isElectron 在文件后段定义，点击时已是运行时，安全
+document.addEventListener('click', e=>{ if($('gearMenu').classList.contains('show') && !$('gearMenu').contains(e.target) && e.target.id!=='panelBtn') closeGearMenu(); });
 $('scrim').addEventListener('click', closePanel);
 const PAGE_IDS = {settings:'pageSettings', stats:'pageStats', logs:'pageLogs', achv:'pageAchv'};
 document.querySelectorAll('.seg-btn').forEach(b=>{
@@ -1849,6 +1885,16 @@ function adjust(deltaMin){ // 运行中 ±5 分钟
   addLog('info', `时间${deltaMin>0?'增加':'减少'} 5 分钟`);
   render();
 }
+/* 本周专注分钟（近 7 天含今天，供 Mini 浮窗"本周专注"展示） */
+function weekFocusMins(){
+  let s = 0;
+  for(let i=0; i<7; i++){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const h = history[dateKeyOf(d)];
+    if(h) s += h.minutes || 0;
+  }
+  return s;
+}
 /* ================= 主循环 ================= */
 function tick(){
   const now = Date.now();
@@ -1871,6 +1917,14 @@ function tick(){
     }
   }
   lastTick = now;
+  if(isElectron){ // Mini 浮窗状态广播（主进程中转；浏览器环境跳过）——isElectron 在文件后段定义，tick 运行时已初始化
+    window.electronAPI.miniState({
+      mode, paused,
+      leftMs: Math.max(0, paused ? leftMs : endAt - now),
+      totalMs, minutes: stats.minutes, weekMins: weekFocusMins(),
+      theme: cfg.theme, fest: document.documentElement.getAttribute('data-fest') || '', focus: cfg.focus
+    });
+  }
   render();
 }
 /* 计时驱动放 Web Worker（v1.15.0）：后台标签页里主线程 setInterval 会被浏览器节流（最低到 1 分钟一次），
@@ -2255,7 +2309,7 @@ $('postponeBtn').addEventListener('click', ()=>{
 // 点击后移除按钮焦点，避免空格键误触发按钮
 document.querySelectorAll('button').forEach(b=>b.addEventListener('click', function(){ this.blur(); }));
 document.addEventListener('keydown', e=>{
-  if(e.code==='Escape'){ if($('focusDurMask').classList.contains('show')) closeFocusDur(); else if($('goalMask').classList.contains('show')) closeGoal(); else if($('abandonMask').classList.contains('show')) closeAbandon(); else closePanel(); return; }
+  if(e.code==='Escape'){ if($('focusDurMask').classList.contains('show')) closeFocusDur(); else if($('goalMask').classList.contains('show')) closeGoal(); else if($('abandonMask').classList.contains('show')) closeAbandon(); else if($('gearMenu').classList.contains('show')) closeGearMenu(); else closePanel(); return; }
   if(e.key==='Enter' && $('focusDurMask').classList.contains('show')){ e.preventDefault(); saveFocusDur(); return; }
 });
 renderLogs();
@@ -2265,6 +2319,29 @@ render();
 // 以下全部为特性检测，浏览器环境行为完全不变。
 const isElectron = typeof window.electronAPI !== 'undefined';
 if(isElectron){
+  $('gmMini').style.display = ''; // 齿轮菜单显示「Mini 模式」（网页版保持隐藏）
+  /* Mini 浮窗命令执行（v1.27.0）：全部走主窗口同一批函数，浮窗只是遥控器，不跑第二套计时 */
+  window.electronAPI.onMiniCmd(c => {
+    if(!c || !c.type) return;
+    if(c.type==='start'){ if(mode==='idle') startFocus(); }
+    else if(c.type==='pause'){ togglePause(); }
+    else if(c.type==='stop'){
+      if(mode==='focus' || mode==='mini'){
+        if(elapsedFocusMs() > ABANDON_CONFIRM_MS) window.electronAPI.showMainWindow(); // 确认框在主窗口弹出，先唤起
+        requestAbandon();
+      }
+    }
+    else if(c.type==='rest'){ if(mode==='focusDone') startRest(); }
+    else if(c.type==='idle'){ if(mode==='restDone') toIdle(); }
+    else if(c.type==='setFocus'){
+      const v = parseInt(c.payload, 10);
+      if(!Number.isNaN(v) && mode==='idle'){
+        cfg.focus = Math.min(180, Math.max(5, v)); // 与主窗口 saveFocusDur 同一钳制
+        LS.set('rft_cfg', cfg); $('cfgFocus').value = cfg.focus; render();
+        addLog('info', `专注时长设为 ${cfg.focus} 分钟（Mini 浮窗）`);
+      }
+    }
+  });
   document.body.classList.add('is-electron'); // 开启拖动区与无边框样式（网页版不受影响）
   /* 无边框窗口控制（v1.26.0）：自绘按钮 → 主进程 IPC；关闭维持"最小化到托盘" */
   $('wcBar').style.display = 'flex';
