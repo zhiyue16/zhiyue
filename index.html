@@ -240,6 +240,25 @@ var _hmt = _hmt || [];
   .tb-btn:hover{ color:var(--text); background:var(--btn-sec); }
   .tb-btn:active{ transform:scale(.92); }
   .tb-btn.active{ color:var(--accent); background:rgba(0,122,255,.14); border-color:transparent; }
+  /* ---------- 无边框窗口（v1.26.0，仅 Electron 生效；网页版一切不变） ---------- */
+  /* 顶部拖动区：fixed 顶条，z-index 1 低于药丸(2)/横幅(190/200)；节日装饰 pointer-events:none 天然不阻断 */
+  .drag-strip{ position:fixed; top:0; left:0; right:0; height:88px; z-index:1; display:none; }
+  body.is-electron .drag-strip{ display:block; -webkit-app-region:drag; }
+  /* 可点击元素逐个 no-drag：药丸整体（含内部按钮）、两条横幅 */
+  body.is-electron .topbar,
+  body.is-electron .fest-bar,
+  body.is-electron .update-bar{ -webkit-app-region:no-drag; }
+  /* 自绘窗口控制按钮：复用 tb-btn 圆钮风格（类名用 win-ctrl-*：wc-* 前缀已被统计页柱状图占用，勿改回） */
+  .win-ctrl-bar{ display:flex; gap:8px; align-items:center; margin-left:4px; padding-left:10px; border-left:1px solid var(--hairline); }
+  .win-ctrl-btn{ width:30px; height:30px; }
+  .win-ctrl-close:hover{ color:#fff; background:var(--red); border-color:transparent; }
+  .win-ctrl-btn .wc-ic-restore{ display:none; }
+  .win-ctrl-btn.is-max .wc-ic-max{ display:none; }
+  .win-ctrl-btn.is-max .wc-ic-restore{ display:block; }
+  /* 小窗口不挤爆：品牌名超出省略，过窄时只留圆点 */
+  .brand{ min-width:0; }
+  .brand-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  @media (max-width:560px){ .brand-name{ display:none; } }
   /* 未查看成就红点（v1.21.0）：仅 transform/opacity，进成就页后消除 */
   .tb-btn{ position:relative; }
   .tb-badge{
@@ -756,6 +775,8 @@ var _hmt = _hmt || [];
   <div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div>
   <!-- 主题扩散过渡层（v1.23.0）：日夜切换时从主题按钮中心扩散的软边圆层，JS 内联设置背景色/圆心/缩放 -->
   <div class="theme-ripple" id="themeRipple" aria-hidden="true"></div>
+  <!-- 窗口拖动区（v1.26.0，仅 Electron 无边框模式显示）：顶部整片空白按住可拖动，双击切换最大化 -->
+  <div class="drag-strip" id="dragStrip" aria-hidden="true"></div>
   <!-- ================= 节日装饰（v1.19.0）：纯 CSS/SVG 绘制，仅在对应 data-fest 激活时显示，
        一律 pointer-events:none、z-index 0（与氛围光斑同层，不遮挡任何交互） ================= -->
   <!-- 春节：灯笼 ×2 + 竖排对联 + 金色祥云光斑 -->
@@ -816,7 +837,7 @@ var _hmt = _hmt || [];
     <div class="petal p3"></div>
   </div>
   <header class="topbar">
-    <div class="brand"><span class="dot"></span>随机提示音专注计时器</div>
+    <div class="brand"><span class="dot"></span><span class="brand-name">随机提示音专注计时器</span></div>
     <div class="top-actions">
       <!-- [优化3] 图标按钮补充 aria-label，屏幕阅读器可识别；type="button" 避免未来被包进 form 时误提交 -->
       <button type="button" class="tb-btn" id="panelBtn" title="设置与记录" aria-label="设置与记录"><span class="tb-ic">⚙︎</span><span class="tb-badge" id="unreadBadge"></span></button>
@@ -834,6 +855,19 @@ var _hmt = _hmt || [];
           </g>
         </svg>
       </button>
+      <!-- 无边框窗口控制（v1.26.0，仅 Electron 显示）：自绘小圆按钮，样式复用 tb-btn -->
+      <span class="win-ctrl-bar" id="wcBar" style="display:none;">
+        <button type="button" class="tb-btn win-ctrl-btn" id="wcMin" title="最小化" aria-label="最小化">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button type="button" class="tb-btn win-ctrl-btn" id="wcMax" title="最大化 / 还原" aria-label="最大化或还原">
+          <svg class="wc-ic-max" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><rect x="5.5" y="5.5" width="13" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <svg class="wc-ic-restore" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" style="display:none;"><path d="M8 8 H18.5 V18.5 H8 Z M5.5 5.5 H15.5 M5.5 5.5 V15.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" class="tb-btn win-ctrl-btn win-ctrl-close" id="wcClose" title="关闭（最小化到托盘）" aria-label="关闭（最小化到托盘）">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </span>
     </div>
   </header>
   <main>
@@ -1018,7 +1052,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.25.2</span>
+            <span>版本 v1.26.0</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
@@ -2229,6 +2263,14 @@ render();
 // 以下全部为特性检测，浏览器环境行为完全不变。
 const isElectron = typeof window.electronAPI !== 'undefined';
 if(isElectron){
+  document.body.classList.add('is-electron'); // 开启拖动区与无边框样式（网页版不受影响）
+  /* 无边框窗口控制（v1.26.0）：自绘按钮 → 主进程 IPC；关闭维持"最小化到托盘" */
+  $('wcBar').style.display = 'flex';
+  $('wcMin').addEventListener('click', () => window.electronAPI.windowMin());
+  $('wcMax').addEventListener('click', () => window.electronAPI.windowMaxToggle());
+  $('wcClose').addEventListener('click', () => window.electronAPI.windowClose());
+  window.electronAPI.onMaxChange(m => $('wcMax').classList.toggle('is-max', m)); // 最大化⇄还原图标
+  $('dragStrip').addEventListener('dblclick', () => window.electronAPI.windowMaxToggle()); // 双击顶部空白切换最大化
   // 开机自启动开关（仅桌面客户端显示，状态由主进程 login item 管理，不进 rft_cfg）
   const alRow = $('autoLaunchRow'), alSw = $('cfgAutoLaunch');
   alRow.style.display = '';

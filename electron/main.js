@@ -24,6 +24,8 @@ else app.on('second-instance', showWin);
 function createWin(){
   win = new BrowserWindow({
     width: 1024, height: 800,
+    minWidth: 420, minHeight: 620,
+    frame: false,                // 无边框（不用 transparent:true：Win 上有最大化动画缺失/显卡兼容坑）
     show: false,
     center: true,
     autoHideMenuBar: true,
@@ -40,7 +42,17 @@ function createWin(){
   // 关闭按钮 = 最小化到托盘，真正退出走托盘菜单「退出」
   win.on('close', e => { if(!isQuitting){ e.preventDefault(); win.hide(); } });
   win.once('closed', () => { win = null; });
+  // 最大化状态同步渲染进程（自绘按钮切换"最大化/还原"图标）
+  win.on('maximize', () => win && !win.isDestroyed() && win.webContents.send('rft:win:max-changed', true));
+  win.on('unmaximize', () => win && !win.isDestroyed() && win.webContents.send('rft:win:max-changed', false));
 }
+
+/* 无边框窗口控制 IPC（v1.26.0）：渲染进程自绘按钮 → 主进程。
+   close 走 win.close() → close 事件拦截为最小化到托盘，行为与系统关闭按钮一致 */
+ipcMain.on('rft:win:min', () => { if(win) win.minimize(); });
+ipcMain.on('rft:win:max', () => { if(win) win.isMaximized() ? win.unmaximize() : win.maximize(); });
+ipcMain.on('rft:win:close', () => { if(win) win.close(); });
+ipcMain.handle('rft:win:isMax', () => win ? win.isMaximized() : false);
 
 function createTray(){
   const img = nativeImage.createFromPath(path.join(__dirname, '..', 'icon-192.png')).resize({ width: 32 });

@@ -13,5 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadUpdate: () => ipcRenderer.invoke('rft:update:download'),
   installUpdate: () => ipcRenderer.invoke('rft:update:install'),
   getVersion: () => ipcRenderer.invoke('rft:version'),
-  onUpdateStatus: (cb) => ipcRenderer.on('rft:update:status', (e, s) => cb(s))
+  onUpdateStatus: (cb) => ipcRenderer.on('rft:update:status', (e, s) => cb(s)),
+  // 无边框窗口控制（v1.26.0）：自绘按钮 → 主进程
+  windowMin: () => ipcRenderer.send('rft:win:min'),
+  windowMaxToggle: () => ipcRenderer.send('rft:win:max'),
+  windowClose: () => ipcRenderer.send('rft:win:close'),
+  windowIsMax: () => ipcRenderer.invoke('rft:win:isMax'),
+  onMaxChange: (cb) => ipcRenderer.on('rft:win:max-changed', (e, v) => cb(v))
 });
