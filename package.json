@@ -7,11 +7,14 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis",
+    "serve": "node tests/server.js",
+    "test": "node tests/regression.js"
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "puppeteer-core": "^23.11.1"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"
