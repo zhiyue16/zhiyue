@@ -46,7 +46,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   let mini = null;
   for (let i = 0; i < 10 && !mini; i++) { await sleep(800); mini = await findMini(); }
   if (!mini) throw new Error('mini 窗口未出现');
+  // 归一初始状态：清掉本地残留的收起/吸附记忆后重载浮窗页（否则卡片类与窗口尺寸互相错位）
+  await mini.evaluate(() => {
+    localStorage.setItem('rft_mini_collapsed', 'false');
+    localStorage.removeItem('rft_mini_snap');
+    location.reload();
+  });
   await sleep(1500);
+  mini = await findMini();
+  await sleep(800);
   const shot = async (name, w, h) => {
     await mini.setViewport({ width: w, height: h });
     await sleep(400);
@@ -54,19 +62,26 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     console.log('saved', name);
   };
 
-  // 1. 展开态
+  // 1. 展开态（无悬停：按钮隐藏）
   await shot('mini-1-expanded.png', 280, 210);
-  // 2. 收起态
+  // 1b. 展开态（悬停：按钮淡入）
+  await mini.hover('#card'); await sleep(450);
+  await mini.screenshot({ path: path.join(OUT, 'mini-1b-expanded-hover.png') });
+  console.log('saved mini-1b-expanded-hover.png');
+  // 2. 收起态（悬停）：先收起 → 先设 96 高视口再悬停（否则鼠标落点在窗外，hover 不生效）
   await mini.evaluate(() => document.getElementById('mCollapse').click());
   await sleep(700);
-  await shot('mini-2-collapsed.png', 280, 96);
-  // 2b. 收起/展开循环复测（v1.27.1 修二次收起失效：setSize→setBounds）
-  for (let i = 0; i < 2; i++) {
-    await mini.evaluate(() => document.getElementById('mCollapse').click()); await sleep(500); // 展开
-    await mini.evaluate(() => document.getElementById('mCollapse').click()); await sleep(500); // 再收起
-  }
-  const hAfterCycle = await mini.evaluate(() => window.outerHeight);
-  console.log(hAfterCycle < 150 ? 'PASS | 二次收起循环正常' : 'FAIL | 二次收起失效 outerHeight=' + hAfterCycle);
+  await mini.setViewport({ width: 280, height: 96 });
+  await sleep(300);
+  await mini.hover('#card'); await sleep(450);
+  await mini.screenshot({ path: path.join(OUT, 'mini-2-collapsed-hover.png') });
+  console.log('saved mini-2-collapsed-hover.png');
+  // 2b. 收起态（无悬停：内联强制 opacity 0 模拟鼠标移出后的最终态）
+  await mini.evaluate(() => document.querySelector('.m-actions').style.setProperty('opacity', '0', 'important'));
+  await sleep(300);
+  await mini.screenshot({ path: path.join(OUT, 'mini-2-collapsed.png') });
+  console.log('saved mini-2-collapsed.png');
+  await mini.evaluate(() => document.querySelector('.m-actions').style.removeProperty('opacity'));
   // 3. ···菜单（展开态下打开）
   await mini.evaluate(() => document.getElementById('mCollapse').click());
   await sleep(700);

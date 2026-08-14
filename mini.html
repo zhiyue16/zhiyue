@@ -12,11 +12,13 @@
     --bg:#f4f4f7; --text:#1d1d1f; --sub:#86868b; --accent:#007aff; --green:#28c840; --red:#ff453a;
     --pill:rgba(255,255,255,.72); --pill-border:rgba(255,255,255,.8); --hairline:rgba(0,0,0,.06);
     --input-bg:rgba(118,118,128,.1); --shadow-pop:0 24px 70px rgba(0,0,0,.18), 0 4px 12px rgba(0,0,0,.07);
+    --track:rgba(118,118,128,.16); /* 进度轨道环：接近背景的浅灰（v1.27.2 减淡） */
   }
   html[data-theme="dark"]{
     --bg:#0a0a0d; --text:#f5f5f7; --sub:#98989f; --accent:#0a84ff; --green:#32d74b; --red:#ff6961;
     --pill:rgba(32,32,36,.72); --pill-border:rgba(255,255,255,.09); --hairline:rgba(255,255,255,.09);
     --input-bg:rgba(118,118,128,.18); --shadow-pop:0 24px 70px rgba(0,0,0,.6), 0 4px 12px rgba(0,0,0,.4);
+    --track:rgba(255,255,255,.12);
   }
   /* 节日限定（与主项目同色系，广播同步 data-fest） */
   html[data-fest="spring"] body{ background:linear-gradient(165deg,#6f0a16,#b01e2c 52%,#d94a3a); }
@@ -42,7 +44,13 @@
   .card > *{ -webkit-app-region:no-drag; }
   .m-top{ display:flex; align-items:center; justify-content:space-between; height:24px; }
   .m-phase{ font-size:12px; font-weight:600; color:var(--sub); letter-spacing:1px; }
-  .m-actions{ display:flex; gap:6px; }
+  .m-actions{ display:flex; gap:6px;
+    /* 悬停显隐（v1.27.2，展开/收起统一）：平时隐藏，鼠标进入浮窗淡入；隐藏时 pointer-events:none 杜绝"看不见但能按" */
+    opacity:0; pointer-events:none; transition:opacity .2s; }
+  .card:hover .m-actions{ opacity:1; pointer-events:auto; }
+  /* 菜单/时长编辑器打开期间保持可见（两者是 body 级 fixed 元素，用 body:has 判定） */
+  body:has(.m-menu:not([hidden])) .m-actions,
+  body:has(.m-editor:not([hidden])) .m-actions{ opacity:1; pointer-events:auto; }
   .m-icbtn{
     width:22px; height:22px; border:none; border-radius:50%; cursor:pointer; font-family:inherit;
     background:var(--input-bg); color:var(--sub); font-size:11px; line-height:1;
@@ -52,7 +60,7 @@
   .m-mid{ flex:1; display:flex; align-items:center; gap:12px; min-height:0; padding:2px 2px 0; }
   .m-ring{ position:relative; width:76px; height:76px; flex-shrink:0; }
   .m-ring > svg{ width:100%; height:100%; transform:rotate(-90deg); } /* 直接子代：勿波及内部按钮图标（v1.27.0 修三角被旋转） */
-  .m-ring .rg-bg{ fill:none; stroke:var(--hairline); stroke-width:7; }
+  .m-ring .rg-bg{ fill:none; stroke:var(--track); stroke-width:6; }
   .m-ring .rg-fg{ fill:none; stroke:var(--green); stroke-width:7; stroke-linecap:round; transition:stroke-dashoffset .3s linear; }
   .m-ring.resting .rg-fg{ stroke:var(--red); }
   .m-play{
@@ -92,6 +100,19 @@
   /* 收起/展开图标方向 */
   #mCollapse .arr{ display:inline-block; transition:transform .2s; }
   .card.collapsed #mCollapse .arr{ transform:rotate(180deg); }
+  /* ---------- 收起态：横向一行紧凑布局（v1.27.2） ---------- */
+  /* 中间列：阶段文字（仅收起态显示）+ 时间 */
+  .m-center{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .m-phase-mid{ display:none; font-size:11.5px; font-weight:600; color:var(--sub); letter-spacing:.5px; }
+  .card.collapsed .m-phase-mid{ display:block; }
+  /* 顶部行改为浮层（不占布局高度），顶部阶段标题隐藏——信息由中间文字承担 */
+  .card.collapsed .m-top{ position:absolute; top:5px; right:8px; left:auto; width:auto; height:auto; z-index:5; }
+  .card.collapsed .m-top .m-phase{ display:none; }
+  /* 圆环缩小到收起高度 80% 以内（96px 高 → 64px），竖向居中不裁切 */
+  .card.collapsed{ justify-content:center; padding-top:0; }
+  .card.collapsed .m-ring{ width:64px; height:64px; }
+  .card.collapsed .m-mid{ padding:0; }
+  .card.collapsed .m-icbtn{ width:18px; height:18px; font-size:9px; }
   /* ---------- ···菜单 / 时长编辑 ---------- */
   .m-menu,.m-editor{
     position:fixed; z-index:10; background:var(--pill); border:1px solid var(--pill-border);
@@ -156,7 +177,10 @@
         </div>
       </div>
       <div class="m-right">
-        <span class="m-time" id="mTime" title="点击设置专注时长">90:00</span>
+        <div class="m-center">
+          <span class="m-phase-mid" id="mPhaseMid">准备开始</span>
+          <span class="m-time" id="mTime" title="点击设置专注时长">90:00</span>
+        </div>
       </div>
     </div>
     <div class="m-bottom" id="mBottom">
@@ -195,7 +219,9 @@ const PHASE = { idle:'准备开始', focus:'专注中', mini:'闭眼休息', foc
 function render(){
   const m = st.mode, running = ['focus','mini','rest'].includes(m);
   const pausedState = st.paused && running;
-  $('mPhase').textContent = (PHASE[m]||'') + (pausedState ? '（已暂停）' : '');
+  const phaseTxt = (PHASE[m]||'') + (pausedState ? '（已暂停）' : '');
+  $('mPhase').textContent = phaseTxt;
+  $('mPhaseMid').textContent = phaseTxt; // 收起态由中间文字承担阶段信息
   $('mTime').textContent = m==='idle' ? pad(st.focus)+':00'
     : (m==='focusDone' || m==='restDone') ? '00:00' : fmt(st.leftMs);
   const prog = m==='idle' ? 0 : (m==='focusDone'||m==='restDone') ? 1
