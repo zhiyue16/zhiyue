@@ -615,7 +615,7 @@ async function tElectronShim() {
 }
 
 async function tFrameless() {
-  // 无边框窗口（v1.27.3）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
+  // 无边框窗口（v1.28.1）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
   let page = await newPage();
   pass('无边框: 网页版不显示窗口按钮', await page.$eval('#wcBar', el => getComputedStyle(el).display === 'none'));
   pass('无边框: 网页版无拖动区', await page.$eval('#dragStrip', el => getComputedStyle(el).display === 'none'));
@@ -642,7 +642,7 @@ async function tFrameless() {
   pass('无边框: 最大化按钮接线', await page.evaluate(() => window.__winMax === 1));
   await page.evaluate(() => window.__maxCb(true)); await sleep(100);
   pass('无边框: 最大化后图标切还原', await page.$eval('#wcMax', el => el.classList.contains('is-max')));
-  // 图标可见性断言（v1.27.3 修内联 display:none 压过 CSS 的 bug）
+  // 图标可见性断言（v1.28.1 修内联 display:none 压过 CSS 的 bug）
   pass('无边框: 最大化态显示还原图标', await page.evaluate(() => {
     const d = s => getComputedStyle(document.querySelector(s)).display;
     return d('.wc-ic-max') === 'none' && d('.wc-ic-restore') !== 'none';
@@ -664,7 +664,7 @@ async function tFrameless() {
 }
 
 async function tChimeLeftFix() {
-  // v1.27.3 修复验证（云 QA 发现的 P1）：暂停恢复后 chimeLeft 残留 → 加时后提示音提前响
+  // v1.28.1 修复验证（云 QA 发现的 P1）：暂停恢复后 chimeLeft 残留 → 加时后提示音提前响
   // 场景：focus=6、间隔固定1分钟。暂停→恢复（chimeLeft 被消费应清零）→ 响铃进 mini → mini 结束（剩余<5分钟尾段不再排铃）
   // → +5 分钟 → 若 chimeLeft 残留会被防御行错误重建为 ~30 秒后响（bug）；正确是按调度 ~60 秒后响
   const page = await newPage({ rft_cfg: cfg({ focus: 6, minInt: 1, maxInt: 1 }) });
@@ -689,7 +689,7 @@ async function tChimeLeftFix() {
 }
 
 async function tMini() {
-  // 齿轮菜单（v1.27.3）：网页版弹菜单无 Mini 项；客户端有 Mini 项且命令驱动同一状态机
+  // 齿轮菜单（v1.28.1）：网页版弹菜单无 Mini 项；客户端有 Mini 项且命令驱动同一状态机
   let page = await newPage();
   await page.click('#panelBtn'); await sleep(250);
   pass('Mini: 齿轮点击弹小菜单', await shown(page, 'gearMenu'));
@@ -728,7 +728,7 @@ async function tMini() {
 }
 
 async function tMiniWin() {
-  // mini.html 浮窗 UI（v1.27.3）：直接加载浮窗页 + 桩驱动广播。
+  // mini.html 浮窗 UI（v1.28.1）：直接加载浮窗页 + 桩驱动广播。
   // 注意：悬停显隐的"默认隐藏"断言必须安排在任何鼠标点击之前（page.click 会把鼠标移进卡片触发 hover）
   const ctx = await browser.createBrowserContext();
   const page = await newPage(null, 'page:mini.html', true, ctx);
@@ -740,19 +740,19 @@ async function tMiniWin() {
        && (await page.$eval('#mWeek', el => el.textContent)) === '5h');
   pass('Mini窗: 播放三角未被旋转拉伸', await page.$eval('#mPlay svg', el => getComputedStyle(el).transform === 'none'));
   // --- 悬停显隐默认态（鼠标未进入，展开/收起各验一次） ---
-  // --- 展开/收起一致性（v1.27.3）：收起=仅隐藏统计栏+窗口变矮，倒计时区域逐像素一致 ---
+  // --- 展开/收起一致性（v1.28.1）：收起=仅隐藏统计栏+窗口变矮，倒计时区域逐像素一致 ---
   pass('Mini窗: 展开态按钮默认隐藏', await page.$eval('.m-actions', el =>
     getComputedStyle(el).opacity === '0' && getComputedStyle(el).pointerEvents === 'none'));
-  await page.setViewport({ width: 800, height: 210 }); // 模拟展开窗高
+  await page.setViewport({ width: 800, height: 185 }); // 模拟展开窗高
   await sleep(250);
   const expRing = await page.$eval('#mRing', el => Math.round(el.getBoundingClientRect().width));
   const expPhase = await page.$eval('#mPhase', el => { const r = el.getBoundingClientRect(); return Math.round(r.x)+','+Math.round(r.y); });
   const expFont = await page.$eval('#mTime', el => getComputedStyle(el).fontSize);
   await page.evaluate(() => document.getElementById('card').classList.add('collapsed'));
-  await page.setViewport({ width: 800, height: 156 }); // 模拟主进程收起改窗高（210-54）
+  await page.setViewport({ width: 800, height: 110 }); // 模拟主进程收起改窗高（185-75）
   await sleep(250);
   pass('Mini窗: 收起仅隐藏统计栏', await page.$eval('#mBottom', el => getComputedStyle(el).display === 'none'));
-  pass('Mini窗: 收起后圆环尺寸不变', (await page.$eval('#mRing', el => Math.round(el.getBoundingClientRect().width))) === expRing);
+  pass('Mini窗: 收起后圆环尺寸不变(64px)', expRing === 64 && (await page.$eval('#mRing', el => Math.round(el.getBoundingClientRect().width))) === expRing);
   pass('Mini窗: 收起后阶段文字位置不变', (await page.$eval('#mPhase', el => { const r = el.getBoundingClientRect(); return Math.round(r.x)+','+Math.round(r.y); })) === expPhase);
   pass('Mini窗: 收起后时间字号不变', (await page.$eval('#mTime', el => getComputedStyle(el).fontSize)) === expFont);
   pass('Mini窗: 收起态按钮默认隐藏', await page.$eval('.m-actions', el => getComputedStyle(el).opacity === '0'));
@@ -762,12 +762,12 @@ async function tMiniWin() {
   await page.hover('#card'); await sleep(300);
   pass('Mini窗: 悬停后按钮淡入', await page.$eval('.m-actions', el =>
     getComputedStyle(el).opacity === '1' && getComputedStyle(el).pointerEvents === 'auto'));
-  // --- 计时/暂停态按钮组 ---
+  // --- 计时/暂停态（v1.28.1：环内双钮 暂停⇄继续+结束） ---
   await push({ ...idleSt, mode:'focus', leftMs: 298000, totalMs: 300000 }); await sleep(250);
   pass('Mini窗: 计时中显示倒计时', (await page.$eval('#mTime', el => el.textContent)) === '04:58');
-  pass('Mini窗: 右侧独立停止钮已删除', await page.evaluate(() => !document.getElementById('mStop')));
   pass('Mini窗: 计时中环内暂停+结束双钮', await page.$eval('#mRingBtns', el => !el.hidden)
        && await page.$eval('#mIcRun', el => getComputedStyle(el).display !== 'none'));
+  pass('Mini窗: 环外无独立停止钮', await page.evaluate(() => !document.getElementById('mStop')));
   await push({ ...idleSt, mode:'focus', paused:true, leftMs: 298000, totalMs: 300000 }); await sleep(250);
   pass('Mini窗: 暂停态环内显示恢复键', await page.$eval('#mIcResume', el => getComputedStyle(el).display !== 'none')
        && await page.$eval('#mIcRun', el => getComputedStyle(el).display === 'none')
