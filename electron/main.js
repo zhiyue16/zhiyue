@@ -77,7 +77,7 @@ function createTray(){
    遥控器架构：计时状态机只在主窗口渲染进程；浮窗是独立无边框 BrowserWindow，
    状态/命令都由主进程中转（rft:mini:state 下行 / rft:mini:cmd 上行） */
 let miniWin = null, miniSnapped = null, miniCollapsed = false, miniMoving = false;
-const MINI_W = 330, MINI_H = 250, MINI_H_MIN = 110, SNAP_W = 12;
+const MINI_W = 280, MINI_H = 210, MINI_H_MIN = 96, SNAP_W = 12;
 
 function sendMiniSnap(){ if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:snap', miniSnapped); }
 
@@ -140,7 +140,11 @@ ipcMain.on('rft:mini:open', createMiniWin);
 ipcMain.on('rft:mini:close', () => { if(miniWin) miniWin.close(); });
 ipcMain.on('rft:mini:collapse', (e, c) => {
   miniCollapsed = !!c;
-  if(miniWin && !miniSnapped) miniWin.setSize(MINI_W, miniCollapsed ? MINI_H_MIN : MINI_H);
+  // 用 setBounds 而非 setSize：Windows + resizable:false 下 setSize 第二次调用会被忽略（v1.27.1 修复二次收起失效）
+  if(miniWin && !miniSnapped){
+    const b = miniWin.getBounds();
+    miniWin.setBounds({ x: b.x, y: b.y, width: MINI_W, height: miniCollapsed ? MINI_H_MIN : MINI_H });
+  }
 });
 ipcMain.on('rft:mini:snapstate', (e, side) => { if(side && miniWin) snapMiniTo(side); }); // 浮窗启动时回报记忆的吸附侧
 ipcMain.on('rft:mini:cmd', (e, cmd) => { if(win && !win.isDestroyed()) win.webContents.send('rft:mini:cmd', cmd); });

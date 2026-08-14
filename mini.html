@@ -36,21 +36,21 @@
   }
   /* ---------- 卡片（展开/收起共用） ---------- */
   .card{
-    height:100vh; display:flex; flex-direction:column; padding:12px 16px 0;
+    height:100vh; display:flex; flex-direction:column; padding:10px 14px 0;
     -webkit-app-region:drag; /* 卡片主体可拖动 */
   }
   .card > *{ -webkit-app-region:no-drag; }
-  .m-top{ display:flex; align-items:center; justify-content:space-between; height:26px; }
-  .m-phase{ font-size:12.5px; font-weight:600; color:var(--sub); letter-spacing:1px; }
+  .m-top{ display:flex; align-items:center; justify-content:space-between; height:24px; }
+  .m-phase{ font-size:12px; font-weight:600; color:var(--sub); letter-spacing:1px; }
   .m-actions{ display:flex; gap:6px; }
   .m-icbtn{
-    width:24px; height:24px; border:none; border-radius:50%; cursor:pointer; font-family:inherit;
-    background:var(--input-bg); color:var(--sub); font-size:12px; line-height:1;
+    width:22px; height:22px; border:none; border-radius:50%; cursor:pointer; font-family:inherit;
+    background:var(--input-bg); color:var(--sub); font-size:11px; line-height:1;
     display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s;
   }
   .m-icbtn:hover{ color:var(--text); }
-  .m-mid{ flex:1; display:flex; align-items:center; gap:16px; min-height:0; padding:2px 2px 0; }
-  .m-ring{ position:relative; width:92px; height:92px; flex-shrink:0; }
+  .m-mid{ flex:1; display:flex; align-items:center; gap:12px; min-height:0; padding:2px 2px 0; }
+  .m-ring{ position:relative; width:76px; height:76px; flex-shrink:0; }
   .m-ring > svg{ width:100%; height:100%; transform:rotate(-90deg); } /* 直接子代：勿波及内部按钮图标（v1.27.0 修三角被旋转） */
   .m-ring .rg-bg{ fill:none; stroke:var(--hairline); stroke-width:7; }
   .m-ring .rg-fg{ fill:none; stroke:var(--green); stroke-width:7; stroke-linecap:round; transition:stroke-dashoffset .3s linear; }
@@ -62,40 +62,32 @@
   }
   .m-play:hover{ filter:brightness(1.08); }
   .m-play:active{ transform:scale(.93); }
-  /* 暂停态：恢复/结束双小钮收进圆环内（v1.27.0） */
-  .m-paused-btns{
-    position:absolute; inset:10px; display:flex; align-items:center; justify-content:center; gap:8px;
+  /* 计时/暂停态：圆环内双小钮（v1.27.1） */
+  .m-ring-btns{
+    position:absolute; inset:8px; display:flex; align-items:center; justify-content:center; gap:6px;
   }
-  .m-paused-btns button{
-    width:27px; height:27px; border:none; border-radius:50%; cursor:pointer;
+  .m-ring-btns button{
+    width:26px; height:26px; border:none; border-radius:50%; cursor:pointer;
     background:var(--input-bg); color:var(--accent); font-size:11px;
     display:flex; align-items:center; justify-content:center; transition:transform .12s, filter .15s;
   }
-  .m-paused-btns button:hover{ filter:brightness(1.1); }
-  .m-paused-btns button:active{ transform:scale(.9); }
-  .m-paused-btns #mStopIn{ color:var(--red); background:rgba(255,69,58,.14); }
+  .m-ring-btns button:hover{ filter:brightness(1.1); }
+  .m-ring-btns button:active{ transform:scale(.9); }
+  .m-ring-btns #mStopIn{ color:var(--red); background:rgba(255,69,58,.14); }
   .m-right{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
   .m-time{
-    font-size:34px; font-weight:600; letter-spacing:.5px; line-height:1; border-radius:8px;
+    font-size:28px; font-weight:600; letter-spacing:.5px; line-height:1; border-radius:8px;
     font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; cursor:default; padding:2px 4px;
   }
   .m-time.clickable{ cursor:pointer; }
   .m-time.clickable:hover{ background:var(--input-bg); }
-  .m-stop{
-    width:26px; height:26px; border:none; border-radius:50%; cursor:pointer; flex-shrink:0;
-    background:rgba(255,69,58,.14); color:var(--red); font-size:11px;
-    display:flex; align-items:center; justify-content:center; transition:filter .15s, transform .12s;
-  }
-  .m-stop:hover{ filter:brightness(1.1); }
-  .m-stop:active{ transform:scale(.92); }
-  .m-stop[hidden]{ display:none; }
   .m-bottom{
-    display:flex; border-top:1px solid var(--hairline); margin-top:8px; padding:10px 4px 0; height:58px;
+    display:flex; border-top:1px solid var(--hairline); margin-top:6px; padding:8px 4px 0; height:48px;
   }
   .m-stat{ flex:1; text-align:center; }
   .m-stat + .m-stat{ border-left:1px solid var(--hairline); }
-  .m-stat .l{ font-size:11px; color:var(--sub); }
-  .m-stat .v{ font-size:19px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .m-stat .l{ font-size:10.5px; color:var(--sub); }
+  .m-stat .v{ font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:1px; }
   .card.collapsed .m-bottom{ display:none; }
   /* 收起/展开图标方向 */
   #mCollapse .arr{ display:inline-block; transition:transform .2s; }
@@ -147,14 +139,16 @@
           <circle class="rg-bg" cx="46" cy="46" r="42"></circle>
           <circle class="rg-fg" id="mRingFg" cx="46" cy="46" r="42"></circle>
         </svg>
-        <button type="button" class="m-play" id="mPlay" title="开始 / 暂停" aria-label="开始或暂停">
-          <svg id="mIcPlay" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5.5 L19 12 L8 18.5 Z" fill="currentColor"/></svg>
-          <svg id="mIcPause" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" hidden><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>
+        <!-- 大播放钮：idle / focusDone / restDone -->
+        <button type="button" class="m-play" id="mPlay" title="开始" aria-label="开始">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M8 5.5 L19 12 L8 18.5 Z" fill="currentColor"/></svg>
         </button>
-        <!-- 暂停态：恢复/结束收进圆环内 -->
-        <div class="m-paused-btns" id="mPausedBtns" hidden>
-          <button type="button" id="mResume" title="继续" aria-label="继续">
-            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M8 5.5 L19 12 L8 18.5 Z" fill="currentColor"/></svg>
+        <!-- 计时中/暂停态：圆环内双小钮（暂停⇄继续 + 结束）。SVG 显隐一律 style.display，
+             不用 hidden 属性——SVG 元素的 .hidden 属性不可靠且 [hidden]!important 会压内联样式（v1.27.1 修图标不可见） -->
+        <div class="m-ring-btns" id="mRingBtns" hidden>
+          <button type="button" id="mBtnA" title="暂停 / 继续" aria-label="暂停或继续">
+            <svg id="mIcRun" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>
+            <svg id="mIcResume" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" style="display:none;"><path d="M8 5.5 L19 12 L8 18.5 Z" fill="currentColor"/></svg>
           </button>
           <button type="button" id="mStopIn" title="结束本轮" aria-label="结束本轮">
             <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>
@@ -163,7 +157,6 @@
       </div>
       <div class="m-right">
         <span class="m-time" id="mTime" title="点击设置专注时长">90:00</span>
-        <button type="button" class="m-stop" id="mStop" title="结束本轮" aria-label="结束本轮" hidden>■</button>
       </div>
     </div>
     <div class="m-bottom" id="mBottom">
@@ -209,12 +202,11 @@ function render(){
     : (st.totalMs ? Math.min(1, Math.max(0, 1 - st.leftMs/st.totalMs)) : 0);
   $('mRingFg').style.strokeDashoffset = CIRC * (1 - prog);
   $('mRing').classList.toggle('resting', m==='rest');
-  // 圆环内按钮：运行中大暂停钮；暂停时换恢复/结束双小钮
-  $('mPlay').style.display = pausedState ? 'none' : 'flex';
-  $('mPausedBtns').hidden = !pausedState;
-  $('mIcPlay').style.display = (running && !st.paused) ? 'none' : 'block';
-  $('mIcPause').hidden = !(running && !st.paused);
-  $('mStop').hidden = !((m==='focus' || m==='mini') && !st.paused); // 外侧停止钮仅运行中；暂停时收进圆环
+  // 圆环内按钮组：idle/完成态大播放钮；计时中/暂停态双小钮（暂停⇄继续 + 结束），图标切换全走 style.display
+  $('mPlay').style.display = running ? 'none' : 'flex';
+  $('mRingBtns').hidden = !running;
+  $('mIcRun').style.display = (running && !st.paused) ? 'block' : 'none';
+  $('mIcResume').style.display = pausedState ? 'block' : 'none';
   $('mTime').classList.toggle('clickable', m==='idle');
   $('mToday').textContent = st.minutes + 'm';
   $('mWeek').textContent = st.weekMins >= 60 ? Math.floor(st.weekMins/60) + 'h' + (st.weekMins%60 ? (st.weekMins%60)+'m' : '') : st.weekMins + 'm';
@@ -244,8 +236,7 @@ $('mPlay').addEventListener('click', () => {
   else if(m==='restDone') api.miniCmd('idle');
   else api.miniCmd('pause');
 });
-$('mStop').addEventListener('click', () => api.miniCmd('stop'));
-$('mResume').addEventListener('click', () => api.miniCmd('pause'));
+$('mBtnA').addEventListener('click', () => api.miniCmd('pause')); // 暂停⇄继续同一命令
 $('mStopIn').addEventListener('click', () => api.miniCmd('stop'));
 $('mCloseWin').addEventListener('click', () => api.miniClose());
 $('mCollapse').addEventListener('click', () => {

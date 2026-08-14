@@ -55,15 +55,22 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   };
 
   // 1. 展开态
-  await shot('mini-1-expanded.png', 330, 250);
+  await shot('mini-1-expanded.png', 280, 210);
   // 2. 收起态
   await mini.evaluate(() => document.getElementById('mCollapse').click());
   await sleep(700);
-  await shot('mini-2-collapsed.png', 330, 110);
+  await shot('mini-2-collapsed.png', 280, 96);
+  // 2b. 收起/展开循环复测（v1.27.1 修二次收起失效：setSize→setBounds）
+  for (let i = 0; i < 2; i++) {
+    await mini.evaluate(() => document.getElementById('mCollapse').click()); await sleep(500); // 展开
+    await mini.evaluate(() => document.getElementById('mCollapse').click()); await sleep(500); // 再收起
+  }
+  const hAfterCycle = await mini.evaluate(() => window.outerHeight);
+  console.log(hAfterCycle < 150 ? 'PASS | 二次收起循环正常' : 'FAIL | 二次收起失效 outerHeight=' + hAfterCycle);
   // 3. ···菜单（展开态下打开）
   await mini.evaluate(() => document.getElementById('mCollapse').click());
   await sleep(700);
-  await mini.setViewport({ width: 330, height: 250 });
+  await mini.setViewport({ width: 280, height: 210 });
   await mini.evaluate(() => document.getElementById('mMore').click());
   await sleep(400);
   await mini.screenshot({ path: path.join(OUT, 'mini-3-menu.png') });
@@ -74,11 +81,11 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await sleep(300);
   await mini.evaluate(() => window.electronAPI.miniCmd('start'));
   await sleep(2500);
-  await shot('mini-4-timing.png', 330, 250);
+  await shot('mini-4-timing.png', 280, 210);
   // 5. 暂停中（环内恢复+结束）
   await mini.evaluate(() => window.electronAPI.miniCmd('pause'));
   await sleep(800);
-  await shot('mini-5-paused.png', 330, 250);
+  await shot('mini-5-paused.png', 280, 210);
   // 恢复计时，让进度积累到约 25% 再吸附（填充可见）
   await mini.evaluate(() => window.electronAPI.miniCmd('pause'));
   await sleep(60000); // 真跑 60 秒（5 分钟番茄 ≈ 20%+）

@@ -615,7 +615,7 @@ async function tElectronShim() {
 }
 
 async function tFrameless() {
-  // 无边框窗口（v1.27.0）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
+  // 无边框窗口（v1.27.1）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
   let page = await newPage();
   pass('无边框: 网页版不显示窗口按钮', await page.$eval('#wcBar', el => getComputedStyle(el).display === 'none'));
   pass('无边框: 网页版无拖动区', await page.$eval('#dragStrip', el => getComputedStyle(el).display === 'none'));
@@ -642,7 +642,7 @@ async function tFrameless() {
   pass('无边框: 最大化按钮接线', await page.evaluate(() => window.__winMax === 1));
   await page.evaluate(() => window.__maxCb(true)); await sleep(100);
   pass('无边框: 最大化后图标切还原', await page.$eval('#wcMax', el => el.classList.contains('is-max')));
-  // 图标可见性断言（v1.27.0 修内联 display:none 压过 CSS 的 bug）
+  // 图标可见性断言（v1.27.1 修内联 display:none 压过 CSS 的 bug）
   pass('无边框: 最大化态显示还原图标', await page.evaluate(() => {
     const d = s => getComputedStyle(document.querySelector(s)).display;
     return d('.wc-ic-max') === 'none' && d('.wc-ic-restore') !== 'none';
@@ -664,7 +664,7 @@ async function tFrameless() {
 }
 
 async function tChimeLeftFix() {
-  // v1.27.0 修复验证（云 QA 发现的 P1）：暂停恢复后 chimeLeft 残留 → 加时后提示音提前响
+  // v1.27.1 修复验证（云 QA 发现的 P1）：暂停恢复后 chimeLeft 残留 → 加时后提示音提前响
   // 场景：focus=6、间隔固定1分钟。暂停→恢复（chimeLeft 被消费应清零）→ 响铃进 mini → mini 结束（剩余<5分钟尾段不再排铃）
   // → +5 分钟 → 若 chimeLeft 残留会被防御行错误重建为 ~30 秒后响（bug）；正确是按调度 ~60 秒后响
   const page = await newPage({ rft_cfg: cfg({ focus: 6, minInt: 1, maxInt: 1 }) });
@@ -689,7 +689,7 @@ async function tChimeLeftFix() {
 }
 
 async function tMini() {
-  // 齿轮菜单（v1.27.0）：网页版弹菜单无 Mini 项；客户端有 Mini 项且命令驱动同一状态机
+  // 齿轮菜单（v1.27.1）：网页版弹菜单无 Mini 项；客户端有 Mini 项且命令驱动同一状态机
   let page = await newPage();
   await page.click('#panelBtn'); await sleep(250);
   pass('Mini: 齿轮点击弹小菜单', await shown(page, 'gearMenu'));
@@ -728,7 +728,7 @@ async function tMini() {
 }
 
 async function tMiniWin() {
-  // mini.html 浮窗 UI（v1.27.0）：直接加载浮窗页 + 桩驱动广播
+  // mini.html 浮窗 UI（v1.27.1）：直接加载浮窗页 + 桩驱动广播
   const ctx = await browser.createBrowserContext();
   const page = await newPage(null, 'page:mini.html', true, ctx);
   const push = s => page.evaluate(x => window.__miniStateCb(x), s);
@@ -737,16 +737,17 @@ async function tMiniWin() {
   pass('Mini窗: idle 态显示设定时长', (await page.$eval('#mTime', el => el.textContent)) === '25:00');
   pass('Mini窗: idle 态今日/本周数据', (await page.$eval('#mToday', el => el.textContent)) === '12m'
        && (await page.$eval('#mWeek', el => el.textContent)) === '5h');
-  pass('Mini窗: 播放三角未被旋转拉伸', await page.$eval('#mIcPlay', el => getComputedStyle(el).transform === 'none'));
+  pass('Mini窗: 播放三角未被旋转拉伸', await page.$eval('#mPlay svg', el => getComputedStyle(el).transform === 'none'));
   await push({ ...idleSt, mode:'focus', leftMs: 298000, totalMs: 300000 }); await sleep(250);
   pass('Mini窗: 计时中显示倒计时', (await page.$eval('#mTime', el => el.textContent)) === '04:58');
-  pass('Mini窗: 计时中暂停图标+外侧停止钮', await page.$eval('#mIcPause', el => !el.hidden)
-       && await page.$eval('#mStop', el => !el.hidden));
+  pass('Mini窗: 右侧独立停止钮已删除', await page.evaluate(() => !document.getElementById('mStop')));
+  pass('Mini窗: 计时中环内暂停+结束双钮', await page.$eval('#mRingBtns', el => !el.hidden)
+       && await page.$eval('#mIcRun', el => getComputedStyle(el).display !== 'none'));
   await push({ ...idleSt, mode:'focus', paused:true, leftMs: 298000, totalMs: 300000 }); await sleep(250);
-  pass('Mini窗: 暂停态恢复/结束收进圆环', await page.$eval('#mPausedBtns', el => !el.hidden)
-       && await page.$eval('#mPlay', el => getComputedStyle(el).display === 'none')
-       && await page.$eval('#mStop', el => el.hidden));
-  await page.click('#mResume'); await sleep(150);
+  pass('Mini窗: 暂停态环内显示恢复键', await page.$eval('#mIcResume', el => getComputedStyle(el).display !== 'none')
+       && await page.$eval('#mIcRun', el => getComputedStyle(el).display === 'none')
+       && await page.$eval('#mPlay', el => getComputedStyle(el).display === 'none'));
+  await page.click('#mBtnA'); await sleep(150);
   pass('Mini窗: 环内恢复钮发 pause 命令', await page.evaluate(() => window.__miniCmds.some(c => c.t === 'pause')));
   await page.click('#mStopIn'); await sleep(150);
   pass('Mini窗: 环内结束钮发 stop 命令', await page.evaluate(() => window.__miniCmds.some(c => c.t === 'stop')));
