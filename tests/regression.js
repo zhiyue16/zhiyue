@@ -604,7 +604,7 @@ async function tElectronShim() {
 }
 
 async function tFrameless() {
-  // 无边框窗口（v1.26.1）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
+  // 无边框窗口（v1.26.2）：网页版无侵入；客户端桩验证按钮/拖动区/no-drag/图标切换
   let page = await newPage();
   pass('无边框: 网页版不显示窗口按钮', await page.$eval('#wcBar', el => getComputedStyle(el).display === 'none'));
   pass('无边框: 网页版无拖动区', await page.$eval('#dragStrip', el => getComputedStyle(el).display === 'none'));
@@ -631,7 +631,7 @@ async function tFrameless() {
   pass('无边框: 最大化按钮接线', await page.evaluate(() => window.__winMax === 1));
   await page.evaluate(() => window.__maxCb(true)); await sleep(100);
   pass('无边框: 最大化后图标切还原', await page.$eval('#wcMax', el => el.classList.contains('is-max')));
-  // 图标可见性断言（v1.26.1 修内联 display:none 压过 CSS 的 bug）
+  // 图标可见性断言（v1.26.2 修内联 display:none 压过 CSS 的 bug）
   pass('无边框: 最大化态显示还原图标', await page.evaluate(() => {
     const d = s => getComputedStyle(document.querySelector(s)).display;
     return d('.wc-ic-max') === 'none' && d('.wc-ic-restore') !== 'none';
@@ -650,6 +650,31 @@ async function tFrameless() {
   pass('无边框: 双击拖动区切换最大化', await page.evaluate(() => window.__winMax === 2));
   await page.close();
   await ctx.close();
+}
+
+async function tChimeLeftFix() {
+  // v1.26.2 修复验证（云 QA 发现的 P1）：暂停恢复后 chimeLeft 残留 → 加时后提示音提前响
+  // 场景：focus=6、间隔固定1分钟。暂停→恢复（chimeLeft 被消费应清零）→ 响铃进 mini → mini 结束（剩余<5分钟尾段不再排铃）
+  // → +5 分钟 → 若 chimeLeft 残留会被防御行错误重建为 ~30 秒后响（bug）；正确是按调度 ~60 秒后响
+  const page = await newPage({ rft_cfg: cfg({ focus: 6, minInt: 1, maxInt: 1 }) });
+  await page.click('#startBtn'); await sleep(300);
+  await warp(page, 30 * 1000);          // 跑 30 秒
+  await page.click('#pauseBtn'); await sleep(300);   // 暂停（chimeLeft=剩余30s快照）
+  await page.click('#pauseBtn'); await sleep(300);   // 恢复（chimeAt 重建，chimeLeft 应清零）
+  await warp(page, 31 * 1000);          // 过 60s 铃点
+  pass('chimeLeft: 响铃出预告条', await shown(page, 'chimePreview'));
+  await warp(page, 4000);               // 预告期过 → mini
+  pass('chimeLeft: 进入闭眼遮罩', await shown(page, 'miniOverlay'));
+  // 顺带核实 P3-2：mini 期间 ±5 按钮不可见不可点（QA 报"可见但无效"，实际应为不可见）
+  pass('chimeLeft: mini 期间±5按钮不可见(P3-2核实)', await page.$eval('#minusBtn', el =>
+    getComputedStyle(el).pointerEvents === 'none' && getComputedStyle(el).opacity === '0'));
+  await warp(page, 11 * 1000);          // mini 结束回 focus（剩余<5分钟尾段，chimeAt=null）
+  await page.click('#plusBtn'); await sleep(300);    // +5 分钟
+  await warp(page, 35 * 1000);          // bug 情形下 ~30 秒就会响
+  pass('chimeLeft: 修复后加时 35 秒内不误响', !(await shown(page, 'chimePreview')));
+  await warp(page, 30 * 1000);          // 到 ~65 秒（正确调度 60s 已过）
+  pass('chimeLeft: 按正常调度响铃', await shown(page, 'chimePreview'));
+  await page.close();
 }
 
 async function tSwAndMisc() {
@@ -692,7 +717,7 @@ async function tSwAndMisc() {
   const suites = [tMainFlow, tAbandon2min, tAbandon7min, tContinuous, tPreviewPostpone,
                   tPauseDuringPreview, tThemeLock, tLogsAndGoal, tRollover, tSchemaMigration,
                   tFestival, tMilestones, tUpdateBar, tDeco, tFixesV120, tAchievement, tLayout,
-                  tThemeRipple, tElectronShim, tFrameless, tSwAndMisc];
+                  tThemeRipple, tElectronShim, tFrameless, tChimeLeftFix, tSwAndMisc];
   for (const fn of suites) {
     try { await fn(); }
     catch (e) { pass(fn.name + ' 套件异常', false, e.message); }

@@ -1052,7 +1052,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.26.1</span>
+            <span>版本 v1.26.2</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
@@ -1772,6 +1772,7 @@ function requestAbandon(){
     abandonWasPaused = paused;
     if(!paused){
       const now = Date.now();
+      focusAccMs += now - lastTick; flushFocusMinutes(); lastTick = now; // 冻结前先把零头冲账，放弃结算不少算（v1.26.2）
       leftMs = endAt - now; // mode 只会是 focus/mini（rest 已在函数开头拦截）
       if(mode==='mini') miniLeft = miniEndAt - now;
       chimeLeft = chimeAt ? chimeAt - now : null;
@@ -1791,6 +1792,7 @@ function closeAbandon(){
     endAt = now + leftMs;
     if(mode==='mini') miniEndAt = now + miniLeft;
     chimeAt = chimeLeft!=null ? now + chimeLeft : null;
+    chimeLeft = null; // 快照消费后清零：否则 adjust(+5) 的防御重建会用残留旧值让提示音提前响（v1.26.2 修）
     paused = false; lastTick = now; render();
   }
 }
@@ -1810,7 +1812,7 @@ function togglePause(){
     addLog('info', '已暂停');
   }else{
     paused = false;
-    if(mode==='focus'){ endAt = now + leftMs; chimeAt = chimeLeft!=null ? now + chimeLeft : null; previewEndAt = previewLeft ? now + previewLeft : 0; previewLeft = 0; }
+    if(mode==='focus'){ endAt = now + leftMs; chimeAt = chimeLeft!=null ? now + chimeLeft : null; chimeLeft = null; previewEndAt = previewLeft ? now + previewLeft : 0; previewLeft = 0; }
     if(mode==='mini'){ miniEndAt = now + miniLeft; endAt = now + leftMs; }
     if(mode==='rest'){ endAt = now + leftMs; }
     addLog('info', '继续');
