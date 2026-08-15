@@ -3,3 +3,4 @@ node_modules/
 release/
 tests/shots/
 tests/electron-app.log
+tests/_winops.ps1
