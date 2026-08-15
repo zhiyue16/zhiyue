@@ -17,7 +17,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // 新开页面：可选预置 localStorage、URL 查询串（如 ?festdate= 模拟节日）、Electron 环境桩，装可控时钟
 async function newPage(seed, query, electron, ctx) {
-  const page = await (ctx || browser).newPage();
+  // 长跑动中 Chrome 偶发丢 target 会话（Session with given id not found），重试一次即可恢复
+  let page;
+  try { page = await (ctx || browser).newPage(); }
+  catch(e) {
+    if(!String(e && e.message).includes('Session with given id')) throw e;
+    await sleep(800);
+    page = await (ctx || browser).newPage();
+  }
   await page.evaluateOnNewDocument((seedStr, isElectron) => {
     // 可控时钟：Date.now 加偏移；__warp(ms) 快进
     let offset = 0;
@@ -47,6 +54,8 @@ async function newPage(seed, query, electron, ctx) {
         miniState: s => { window.__miniState = s; },
         onMiniState: cb => { window.__miniStateCb = cb; },
         onMiniSnap: cb => { window.__miniSnapCb = cb; },
+        miniPeekShow: () => { window.__miniPeekShows = (window.__miniPeekShows||0)+1; },
+        onMiniPeek: cb => { window.__miniPeekCb = cb; },
         miniEditorOpen: a => { window.__miniEditorOpen = a; },
         miniEditorCommit: v => { (window.__editorCommits = window.__editorCommits||[]).push(v); },
         miniEditorCancel: () => { window.__editorCancels = (window.__editorCancels||0)+1; },
@@ -71,7 +80,7 @@ const txt = (page, id) => page.$eval('#' + id, el => el.textContent);
 const vis = (page, id) => page.$eval('#' + id, el => !el.classList.contains('hidden') && getComputedStyle(el).display !== 'none');
 const shown = (page, id) => page.$eval('#' + id, el => el.classList.contains('show'));
 const phase = page => txt(page, 'phaseText');
-const cfg = (over) => Object.assign({ focus: 90, minInt: 3, maxInt: 5, rest: 20, sound: 'bell', theme: 'light', volume: 100, goal: 4, continuous: false }, over);
+const cfg = (over) => Object.assign({ focus: 90, minInt: 3, maxInt: 5, rest: 20, sound: 'bell', theme: 'light', volume: 100, goal: 4, continuous: false, pomo: false }, over);
 
 async function tMainFlow() {
   const page = await newPage({ rft_cfg: cfg({ focus: 5, sound: 'beep' }) });
@@ -145,6 +154,62 @@ async function tContinuous() {
   await page.click('#abandonSave'); await sleep(300);
   pass('连续模式: 结束保存后回准备', (await phase(page)).includes('准备开始'));
   await page.close();
+}
+
+async function tPomo() {
+  // 番茄钟模式（v1.28.3）：专注全程不排铃；focus/mini 态两个开关锁定，其余状态可切换
+  const locked = (page, id) => page.$eval('#' + id, el =>
+    el.classList.contains('locked') && getComputedStyle(el).pointerEvents === 'none');
+  const unlocked = (page, id) => page.$eval('#' + id, el => !el.classList.contains('locked'));
+  const lsCfg = page => page.evaluate(() => JSON.parse(localStorage.getItem('rft_cfg')));
+  const page = await newPage({ rft_cfg: cfg({ focus: 5, minInt: 1, maxInt: 1, rest: 1, pomo: true }) });
+  pass('番茄钟: idle 态开关未锁定', await unlocked(page, 'cfgPomo') && await unlocked(page, 'cfgContinuous'));
+  pass('番茄钟: seed pomo:true 开关渲染为开', await page.$eval('#cfgPomo', el => el.classList.contains('on')));
+  await page.click('#startBtn'); await sleep(800); // 等 tick 刷锁态
+  pass('番茄钟: focus 态两开关锁定', await locked(page, 'cfgPomo') && await locked(page, 'cfgContinuous'));
+  // 锁定下真实点击无效（pointer-events:none，事件落不到开关）：先开面板再点
+  await page.click('#panelBtn'); await sleep(300);
+  await page.click('#gmPanel'); await sleep(400);
+  await page.click('#cfgPomo').catch(() => {}); await sleep(200);
+  pass('番茄钟: 锁定下点击 cfg.pomo 不变', (await lsCfg(page)).pomo === true);
+  await page.keyboard.press('Escape'); await sleep(300); // 关面板
+  // 全程 5 分钟分步 warp：不进 mini、不出预告、不响铃（statChimes 只在 startMini 累加，是确定性判据）
+  let sawMini = false;
+  for(let i = 0; i < 10; i++){
+    await warp(page, 30000);
+    if(await shown(page, 'miniOverlay')) sawMini = true;
+  }
+  await warp(page, 5000);
+  pass('番茄钟: 全程不进 mini（采样）', !sawMini);
+  pass('番茄钟: 5 分钟后专注完成', (await phase(page)).includes('专注完成'));
+  pass('番茄钟: 提示音计 0', (await txt(page, 'statChimes')) === '0');
+  pass('番茄钟: 分钟/轮次照常累计', (await txt(page, 'statMinutes')) === '5' && (await txt(page, 'statRounds')) === '1');
+  // focusDone 态：解锁且可切换（翻一次再翻回）
+  pass('番茄钟: focusDone 态解锁', await unlocked(page, 'cfgPomo') && await unlocked(page, 'cfgContinuous'));
+  await page.click('#panelBtn'); await sleep(300);
+  await page.click('#gmPanel'); await sleep(400);
+  await page.click('#cfgContinuous'); await sleep(200);
+  pass('番茄钟: focusDone 态可切换连续专注', (await lsCfg(page)).continuous === true);
+  await page.click('#cfgContinuous'); await sleep(200); // 翻回 false
+  await page.keyboard.press('Escape'); await sleep(300);
+  // rest 态解锁
+  await page.click('#restBtn'); await sleep(800);
+  pass('番茄钟: rest 态解锁', (await phase(page)).includes('大休息') && await unlocked(page, 'cfgPomo'));
+  // restDone 态解锁
+  await warp(page, 1 * 60000 + 2000);
+  pass('番茄钟: restDone 态解锁', (await phase(page)).includes('休息结束') && await unlocked(page, 'cfgPomo'));
+  // 回 idle：解锁且 pomo 保持开
+  await page.click('#doneBtn'); await sleep(800);
+  pass('番茄钟: 回 idle 解锁且 pomo 仍为开', (await phase(page)).includes('准备开始')
+       && await unlocked(page, 'cfgPomo') && (await lsCfg(page)).pomo === true);
+  await page.close();
+
+  // 基线：pomo:false 时提示音照常（1 分钟间隔必响 → 出预告条）
+  const page2 = await newPage({ rft_cfg: cfg({ focus: 10, minInt: 1, maxInt: 1, pomo: false }) });
+  await page2.click('#startBtn'); await sleep(300);
+  await warp(page2, 61 * 1000);
+  pass('番茄钟: 关闭时提示音照常（出预告条）', await shown(page2, 'chimePreview'));
+  await page2.close();
 }
 
 async function tPreviewPostpone() {
@@ -796,6 +861,27 @@ async function tMiniWin() {
   await push({ ...idleSt, mode:'focus', leftMs: 298000, totalMs: 300000 }); await sleep(250);
   await page.evaluate(() => { window.__miniEditorOpen = null; document.getElementById('mTime').click(); });
   pass('Mini窗: 计时中点击时间不开弹窗', await page.evaluate(() => !window.__miniEditorOpen));
+  // --- 贴边隐藏的视图切换（v1.28.3）：吸附→细条，peek→临时回卡片，peek 结束→回细条 ---
+  await page.evaluate(() => window.__miniSnapCb('left')); await sleep(200);
+  pass('Mini窗: 吸附后显示细条', await page.evaluate(() => document.body.classList.contains('snapped')));
+  await page.evaluate(() => { document.getElementById('strip').dispatchEvent(new Event('mouseenter')); }); await sleep(200);
+  pass('Mini窗: 悬停细条请求展开', (await page.evaluate(() => window.__miniPeekShows||0)) >= 1);
+  await page.evaluate(() => window.__miniPeekCb(true)); await sleep(200);
+  pass('Mini窗: peek 展开显示卡片', await page.evaluate(() => !document.body.classList.contains('snapped')
+       && getComputedStyle(document.getElementById('card')).display !== 'none'));
+  await page.evaluate(() => window.__miniPeekCb(false)); await sleep(200);
+  pass('Mini窗: peek 结束回细条', await page.evaluate(() => document.body.classList.contains('snapped')));
+  await page.evaluate(() => window.__miniSnapCb(null)); await sleep(200);
+  pass('Mini窗: 取消吸附回卡片且清记忆', await page.evaluate(() =>
+    !document.body.classList.contains('snapped') && localStorage.getItem('rft_mini_snap') === 'null'));
+  // --- 拖拽区域（v1.28.3）：两行内容区显式 drag（.card 盒高经 zoom 比内容矮，只在 .card 标 drag 会漏统计栏），仅按钮/圆环/时间禁拖（app-region 不进 computed style，查 CSSOM 规则） ---
+  pass('Mini窗: 拖拽区域规则正确', await page.evaluate(() => {
+    const css = [...document.styleSheets[0].cssRules].map(r => r.cssText).join('\n');
+    const rowsDrag = /\.m-mid, \.m-bottom\s*\{[^}]*app-region:\s*drag/.test(css); // Chrome 序列化为无前缀 app-region
+    const noDrag = /\.m-top, \.m-ring, \.m-time\s*\{[^}]*app-region:\s*no-drag/.test(css);
+    const noBlanket = !/\.card\s*>\s*\*/.test(css); // 旧的一刀切规则已移除
+    return rowsDrag && noDrag && noBlanket;
+  }));
   await page.close();
   await ctx.close();
 }
@@ -880,7 +966,7 @@ async function tSwAndMisc() {
     executablePath: CHROME, headless: 'new',
     args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio', '--window-size=500,950']
   });
-  const suites = [tMainFlow, tAbandon2min, tAbandon7min, tContinuous, tPreviewPostpone,
+  const suites = [tMainFlow, tAbandon2min, tAbandon7min, tContinuous, tPomo, tPreviewPostpone,
                   tPauseDuringPreview, tThemeLock, tLogsAndGoal, tRollover, tSchemaMigration,
                   tFestival, tMilestones, tUpdateBar, tDeco, tFixesV120, tAchievement, tLayout,
                   tThemeRipple, tElectronShim, tFrameless, tChimeLeftFix, tMini, tMiniWin, tMiniEditor, tSwAndMisc];

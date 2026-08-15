@@ -25,8 +25,12 @@ async function connectOrLaunch() {
 (async () => {
   const browser = await connectOrLaunch();
 
-  const findMain = async () => (await browser.pages()).find(p => p.url().includes('index.html'));
-  const findMini = async () => (await browser.pages()).find(p => p.url().includes('mini.html'));
+  // 关键（v1.28.3 排障结论）：puppeteer connect 会给接管的 target 下发 defaultViewport 800×600 覆盖，
+  // 导致渲染视口与 OS 窗口错位、底部输入死区。取到页面一律先 setViewport(null) 清覆盖；
+  // 本脚本不再用 setViewport 设尺寸——清覆盖后 CDP 截图天然就是真实窗口内容。
+  const adopt = async p => { if (p) { try { await p.setViewport(null); } catch (e) {} } return p; };
+  const findMain = async () => adopt((await browser.pages()).find(p => p.url().includes('index.html')));
+  const findMini = async () => adopt((await browser.pages()).find(p => p.url().includes('mini.html')));
   let main = await findMain();
   // 重载拿到最新代码（页面改动 reload 即生效，无需重启实例）
   await main.reload({ waitUntil: 'load' });
@@ -61,24 +65,21 @@ async function connectOrLaunch() {
   await sleep(1500);
   mini = await findMini();
   await sleep(800);
-  const shot = async (name, w, h) => {
-    await mini.setViewport({ width: w, height: h });
-    await sleep(400);
+  const shot = async (name) => {
+    await sleep(300);
     await mini.screenshot({ path: path.join(OUT, name) });
     console.log('saved', name);
   };
 
   // 1. 展开态（无悬停：按钮隐藏）
-  await shot('mini-1-expanded.png', 193, 123);
+  await shot('mini-1-expanded.png');
   // 1b. 展开态（悬停：按钮淡入）
   await mini.hover('#card'); await sleep(450);
   await mini.screenshot({ path: path.join(OUT, 'mini-1b-expanded-hover.png') });
   console.log('saved mini-1b-expanded-hover.png');
-  // 2. 收起态（悬停）：先收起 → 先设 156 高视口再悬停（否则鼠标落点在窗外，hover 不生效）
+  // 2. 收起态（悬停）：先收起（真实视口=窗口尺寸，hover 落点天然正确）
   await mini.evaluate(() => document.getElementById('mCollapse').click());
   await sleep(700);
-  await mini.setViewport({ width: 193, height: 73 });
-  await sleep(300);
   await mini.hover('#card'); await sleep(450);
   await mini.screenshot({ path: path.join(OUT, 'mini-2-collapsed-hover.png') });
   console.log('saved mini-2-collapsed-hover.png');
@@ -91,20 +92,19 @@ async function connectOrLaunch() {
   // 3. ···菜单（展开态下打开）
   await mini.evaluate(() => document.getElementById('mCollapse').click());
   await sleep(700);
-  await mini.setViewport({ width: 193, height: 123 });
   await mini.evaluate(() => document.getElementById('mMore').click());
   await sleep(400);
   await mini.screenshot({ path: path.join(OUT, 'mini-3-menu.png') });
   console.log('saved mini-3-menu.png');
   await mini.evaluate(() => document.body.click()); // 关菜单
   // 3c/3d. 时长弹窗（v1.28.2 独立窗口）：展开态 + 收起态各一张。弹窗是独立 BrowserWindow，
-  // 通过页面列表找 mini-editor.html；setViewport 只污染弹窗页（关窗即销毁，不影响浮窗）
+  // 通过页面列表找 mini-editor.html；接管后同样先 setViewport(null) 清默认覆盖
   const shotEditor = async name => {
     await mini.evaluate(() => document.getElementById('mTime').click());
     let ed = null;
     for (let i = 0; i < 10 && !ed; i++) { await sleep(500); ed = (await browser.pages()).find(p => p.url().includes('mini-editor.html')); }
     if (!ed) throw new Error('弹窗窗口未出现');
-    await ed.setViewport({ width: 250, height: 175 });
+    await ed.setViewport(null);
     await sleep(400);
     await ed.screenshot({ path: path.join(OUT, name) });
     console.log('saved', name);
@@ -114,8 +114,6 @@ async function connectOrLaunch() {
   await shotEditor('mini-3c-editor-expanded.png');
   await mini.evaluate(() => document.getElementById('mCollapse').click()); // 收起
   await sleep(700);
-  await mini.setViewport({ width: 193, height: 73 });
-  await sleep(300);
   await shotEditor('mini-3d-editor-collapsed.png');
   await mini.evaluate(() => document.getElementById('mCollapse').click()); // 恢复展开
   await sleep(700);
@@ -124,22 +122,38 @@ async function connectOrLaunch() {
   await sleep(300);
   await mini.evaluate(() => window.electronAPI.miniCmd('start'));
   await sleep(2500);
-  await shot('mini-4-timing.png', 193, 123);
+  await shot('mini-4-timing.png');
   // 5. 暂停中（环内恢复+结束）
   await mini.evaluate(() => window.electronAPI.miniCmd('pause'));
   await sleep(800);
-  await shot('mini-5-paused.png', 193, 123);
+  await shot('mini-5-paused.png');
   // 恢复计时，让进度积累到约 25% 再吸附（填充可见）
   await mini.evaluate(() => window.electronAPI.miniCmd('pause'));
   await sleep(60000); // 真跑 60 秒（5 分钟番茄 ≈ 20%+）
-  // 6/7. 右缘吸附竖条 + 填充
+  // 6/7. 贴边隐藏（v1.28.3）：吸附镜头用 OS 屏幕区域截图（winops 走 user32，按真实窗口矩形取图）
+  const winops = require('./winops');
   await mini.evaluate(() => window.electronAPI.miniReportSnap('right'));
+  await sleep(1500); // 直接到位（无动画路径）
+  const [wx, wy, ww, wh] = winops.wa();
+  let mr = winops.rect();
+  winops.ps('shot', wx + ww - 60, mr[1] - 10, 60, 150, path.join(OUT, 'mini-6-snap-sliver.png'));
+  console.log('saved mini-6-snap-sliver.png');
+  // 悬停展开（主进程光标轮询触发）
+  winops.ps('cursor', wx + ww - 2, mr[1] + 30);
   await sleep(1200);
-  await shot('mini-6-snap.png', 12, 360);
-  await shot('mini-7-snap-fill.png', 40, 360); // 加宽视口拍填充细节（窗口本体仍 12px，此处只为看清）
+  mr = winops.rect();
+  winops.ps('shot', wx + ww - 240, mr[1] - 10, 240, 150, path.join(OUT, 'mini-7-snap-peek.png'));
+  console.log('saved mini-7-snap-peek.png');
+  winops.ps('cursor', Math.round(wx + ww / 2), Math.round(wy + wh / 2)); // 光标移开让它收回
+  await sleep(1500);
 
   // 结束计时（把实测起的番茄停掉），断开连接但保持实例运行（用户还要手动验收）
   await mini.evaluate(() => window.electronAPI.miniCmd('stop')).catch(() => {});
+  await sleep(800);
+  await main.evaluate(() => { // 实拍残留的测试番茄一律丢弃，不进统计
+    const mask = document.getElementById('abandonMask');
+    if (mask && mask.classList.contains('show')) document.getElementById('abandonOk').click();
+  });
   await sleep(500);
   // 解除吸附+恢复展开，把浮窗还原到常规卡片态（不残留 12px 竖条在屏幕上）
   await mini.evaluate(() => {

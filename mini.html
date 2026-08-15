@@ -42,7 +42,11 @@
     height:100vh; display:flex; flex-direction:column; padding:0 12px;
     -webkit-app-region:drag; /* 卡片主体可拖动 */
   }
-  .card > *{ -webkit-app-region:no-drag; }
+  /* 拖拽区域（v1.28.3）：两行内容区显式 drag（.card 高 100vh 经 zoom 后盒子比内容矮，
+     统计栏大半在 .card 盒外，仅在 .card 上标 drag 会漏掉它——v1.28.2 拖不动统计栏的教训）；
+     仅交互元素禁拖——按钮组浮层、圆环（内含播放/暂停/结束钮）、时间数字（idle 点击开时长弹窗） */
+  .m-mid, .m-bottom{ -webkit-app-region:drag; }
+  .m-top, .m-ring, .m-time{ -webkit-app-region:no-drag; }
   /* 按钮组浮层：不占布局高度（90px 卡片放不下独立按钮行），悬停淡入 */
   .m-top{ position:absolute; top:5px; right:8px; z-index:5; }
   .m-phase{ font-size:11px; font-weight:600; color:var(--sub); letter-spacing:.5px; white-space:nowrap; }
@@ -229,6 +233,12 @@ api.onMiniSnap(v => {
   LS.set('rft_mini_snap', v);
   document.body.classList.toggle('snapped', !!v);
 });
+/* 贴边隐藏（v1.28.3）：peek=true 临时显示卡片（吸附记忆不动），false 且仍吸附则回细条 */
+api.onMiniPeek(v => {
+  if(v) document.body.classList.remove('snapped');
+  else if(snapped) document.body.classList.add('snapped');
+});
+$('strip').addEventListener('mouseenter', () => { if(snapped) api.miniPeekShow(); }); // 悬停细条 → 展开
 if(snapped) api.miniReportSnap(snapped); // 启动恢复吸附
 if(collapsed){ $('card').classList.add('collapsed'); api.miniCollapse(true); }
 

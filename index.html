@@ -664,6 +664,7 @@ var _hmt = _hmt || [];
     background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .2s cubic-bezier(.3,.9,.4,1.1); }
   .switch.on{ background:var(--accent); }
   .switch.on .knob{ transform:translateX(19px); }
+  .switch.locked{ pointer-events:none; opacity:.45; } /* 专注/闭眼阶段禁切（v1.28.3），透明度沿用 .num-input:disabled 惯例 */
   .field .unit{ font-size:12px; color:var(--sub); margin-left:4px; }
   .num-input{
     width:72px; padding:6px 10px; border-radius:9px; border:none;
@@ -1029,9 +1030,14 @@ var _hmt = _hmt || [];
           <label for="cfgRest">大休息时长<span class="unit">1–120 分钟</span></label>
           <span><input class="num-input" id="cfgRest" type="number" min="1" max="120" value="20"><span class="unit">分钟</span></span>
         </div>
+        <div class="group-label">功能</div>
         <div class="field">
           <label for="cfgContinuous">连续专注<span class="unit">完成自动休息，休息完自动下一轮</span></label>
           <button type="button" class="switch" id="cfgContinuous" role="switch" aria-checked="false" aria-label="连续专注"><span class="knob"></span></button>
+        </div>
+        <div class="field">
+          <label for="cfgPomo">番茄钟模式<span class="unit">经典番茄钟，专注全程不打扰</span></label>
+          <button type="button" class="switch" id="cfgPomo" role="switch" aria-checked="false" aria-label="番茄钟模式"><span class="knob"></span></button>
         </div>
         <div class="group-label">提示音</div>
         <div class="field">
@@ -1073,7 +1079,7 @@ var _hmt = _hmt || [];
           <div class="about-meta">
             <span>作者：纸月十六</span>
             <span class="about-sep">·</span>
-            <span>版本 v1.28.2</span>
+            <span>版本 v1.28.3</span>
             <span class="about-sep">·</span>
             <span>2026-08-14</span>
             <span class="about-sep">·</span>
@@ -1162,9 +1168,10 @@ const dom = {};
  'miniOverlay','miniCount','chimePreview','startBtn','pauseBtn','stopBtn','restBtn',
  'skipRestBtn','doneBtn','statMinutes','statRounds','statChimes'].forEach(id => dom[id] = $(id));
 /* ================= 设置（含边界校验） ================= */
-const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100, goal:4, continuous:false}, LS.get('rft_cfg',{}));
+const cfg = Object.assign({focus:90, minInt:3, maxInt:5, rest:20, sound:'bell', theme:'light', volume:100, goal:4, continuous:false, pomo:false}, LS.get('rft_cfg',{}));
 if(cfg.goal==null) cfg.goal = 4; // 兼容旧存档
 if(cfg.continuous==null) cfg.continuous = false; // 兼容旧存档
+if(cfg.pomo==null) cfg.pomo = false; // 兼容旧存档
 function readSettings(){
   let warn = '';
   // num(v, min, max, dflt)：解析失败(空/非数字)用默认值，否则按边界钳制（0 会被钳到下限而非误判为空）
@@ -1184,13 +1191,18 @@ function readSettings(){
   $(id).value = cfg[{cfgFocus:'focus',cfgMinInt:'minInt',cfgMaxInt:'maxInt',cfgRest:'rest'}[id]];
   $(id).addEventListener('change', ()=>{ readSettings(); if(mode==='idle') render(); });
 });
-/* 连续专注开关 */
-(function(){
-  const sw = $('cfgContinuous');
-  function renderSwitch(){ sw.classList.toggle('on', !!cfg.continuous); sw.setAttribute('aria-checked', String(!!cfg.continuous)); }
-  sw.addEventListener('click', ()=>{ cfg.continuous = !cfg.continuous; LS.set('rft_cfg', cfg); renderSwitch(); });
+/* 开关：连续专注 / 番茄钟模式（v1.28.3）。focus/mini 阶段锁定由 renderSwitchLocks 加 .locked 类实现 */
+[['cfgContinuous','continuous'], ['cfgPomo','pomo']].forEach(([id, key])=>{
+  const sw = $(id);
+  function renderSwitch(){ sw.classList.toggle('on', !!cfg[key]); sw.setAttribute('aria-checked', String(!!cfg[key])); }
+  sw.addEventListener('click', ()=>{ cfg[key] = !cfg[key]; LS.set('rft_cfg', cfg); renderSwitch(); });
   renderSwitch();
-})();
+});
+function renderSwitchLocks(){ // 专注/闭眼阶段禁切（替代中途切换逻辑），回到其他状态自动恢复
+  const lock = mode==='focus' || mode==='mini';
+  $('cfgContinuous').classList.toggle('locked', lock);
+  $('cfgPomo').classList.toggle('locked', lock);
+}
 /* ================= 主题 ================= */
 function applyTheme(){
   document.documentElement.setAttribute('data-theme', cfg.theme);
@@ -1653,6 +1665,7 @@ function elapsedFocusMs(){
   return acc;
 }
 function scheduleChime(now, remainingMs){
+  if(cfg.pomo){ chimeAt = null; return; } // 番茄钟模式（v1.28.3）：专注全程不排铃；mini 唯一入口是 chimeAt→预告→startMini，不排铃即全程不打扰
   const lo = cfg.minInt*60, hi = cfg.maxInt*60;
   const randSec = lo + Math.floor(Math.random()*(hi-lo+1)); // 秒级随机
   if (remainingMs - randSec*1000 >= NO_CHIME_TAIL){ chimeAt = now + randSec*1000; }
@@ -2031,6 +2044,7 @@ function render(){
   for(const id in vis) dom[id].classList.toggle('hidden', !vis[id]);
   dom.pauseBtn.textContent = paused ? '继续' : '暂停';
   dom.doneBtn.textContent = mode==='rest' ? '提前结束休息' : '完成，回到准备';
+  renderSwitchLocks(); // 专注/闭眼阶段锁定两个模式开关
   // 统计
   dom.statMinutes.textContent = stats.minutes;
   dom.statRounds.textContent = stats.rounds;

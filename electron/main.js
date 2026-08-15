@@ -77,48 +77,157 @@ function createTray(){
    遥控器架构：计时状态机只在主窗口渲染进程；浮窗是独立无边框 BrowserWindow，
    状态/命令都由主进程中转（rft:mini:state 下行 / rft:mini:cmd 上行） */
 let miniWin = null, miniSnapped = null, miniCollapsed = false, miniMoving = false, miniEditorWin = null;
-const MINI_W = 193, MINI_H = 123, MINI_H_MIN = 73, SNAP_W = 12; // v1.28.2 整体缩 1/3（mini.html body zoom:.6667）
+let miniAnimating = false, miniPeek = false, animTimer = null, pendingSnapTimer = null, hideTimer = null, cursorPoll = null, hoverPoll = null;
+const MINI_W = 193, MINI_H = 123, MINI_H_MIN = 73; // v1.28.2 整体缩 1/3（mini.html body zoom:.6667）
+// QQ 式贴边隐藏（v1.28.3）：20px 触发区 + 300ms 停留防误吸；吸附=滑出屏幕只露 4px 细条；
+// 悬停细条滑出完整卡片，离开 500ms 自动收回；拖离 28px 恢复
+const EDGE_ZONE = 20, DWELL_MS = 300, SLIVER = 4, UNSNAP = 28;
+const ANIM_SNAP = 230, ANIM_PEEK = 200, ANIM_UNSNAP = 180, HIDE_DELAY = 500, POLL_MS = 300;
 const EDITOR_W = 250, EDITOR_H = 175; // 时长弹窗独立窗口（含阴影留白）
 
 function sendMiniSnap(){ if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:snap', miniSnapped); }
+function sendMiniPeek(v){ if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:peek', v); }
+function clearSnapTimers(){
+  if(pendingSnapTimer){ clearTimeout(pendingSnapTimer); pendingSnapTimer = null; }
+  if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
+  if(cursorPoll){ clearInterval(cursorPoll); cursorPoll = null; }
+  if(hoverPoll){ clearInterval(hoverPoll); hoverPoll = null; }
+}
 
-function snapMiniTo(side){
-  if(!miniWin) return;
+/* 细条隐藏态的悬停检测（主进程光标轮询）。
+   注意：不能依赖渲染进程 mouseenter——浮窗渲染视口恒为 800×600（Chromium 视图未随窗口重排的已知
+   假象，见交接文档），细条可见区在视口边缘，OS 级鼠标事件送不到渲染层，必须用 getCursorScreenPoint 轮询 */
+function startHoverPoll(){
+  if(hoverPoll) return;
+  hoverPoll = setInterval(() => {
+    if(!miniWin || miniWin.isDestroyed() || !miniSnapped || miniPeek || miniAnimating) return;
+    const p = screen.getCursorScreenPoint();
+    const b = miniWin.getBounds();
+    const wa = screen.getPrimaryDisplay().workArea;
+    // 可见细条 + 紧邻屏幕边缘 3px 都算触发区；y 取窗口范围（上下各让 2px）
+    const inX = miniSnapped === 'left'
+      ? (p.x >= wa.x && p.x <= wa.x + SLIVER + 3)
+      : (p.x >= wa.x + wa.width - SLIVER - 3 && p.x <= wa.x + wa.width);
+    const inY = p.y >= b.y - 2 && p.y <= b.y + b.height + 2;
+    if(inX && inY) peekShow();
+  }, POLL_MS);
+}
+
+/* 窗口动画：Electron 无窗口动画 API，16ms 定时器逐帧 setBounds + ease-out cubic。
+   miniAnimating 防 move 回调重入（沿用 miniMoving 思路）；新动画可打断旧动画 */
+function animateBounds(target, ms, done){
+  if(!miniWin || miniWin.isDestroyed()) return;
+  if(animTimer){ clearInterval(animTimer); animTimer = null; }
+  const from = miniWin.getBounds(), t0 = Date.now();
+  miniAnimating = true;
+  animTimer = setInterval(() => {
+    if(!miniWin || miniWin.isDestroyed()){ clearInterval(animTimer); animTimer = null; miniAnimating = false; return; }
+    let t = (Date.now() - t0) / ms; if(t > 1) t = 1;
+    const e = 1 - Math.pow(1 - t, 3);
+    miniWin.setBounds({
+      x: Math.round(from.x + (target.x - from.x) * e),
+      y: Math.round(from.y + (target.y - from.y) * e),
+      width: Math.round(from.width + (target.width - from.width) * e),
+      height: Math.round(from.height + (target.height - from.height) * e)
+    });
+    if(t === 1){ clearInterval(animTimer); animTimer = null; miniAnimating = false; if(done) done(); }
+  }, 16);
+}
+
+/* 吸附隐藏：宽高不变，只滑出屏幕（左缘露右侧 4px / 右缘露左侧 4px），细条高度=卡片当前高度 */
+function snapHide(side, opts){
+  if(!miniWin || miniWin.isDestroyed()) return;
   closeMiniEditor(); // 吸附即关弹窗（浮窗位置/形态变化，锚点失效）
+  clearSnapTimers();
+  const wa = screen.getPrimaryDisplay().workArea; // 已知限制：只适配主屏，多屏不处理
+  const b = miniWin.getBounds();
+  const h = miniCollapsed ? MINI_H_MIN : MINI_H;
+  const target = {
+    x: side === 'left' ? wa.x - (MINI_W - SLIVER) : wa.x + wa.width - SLIVER,
+    y: Math.max(wa.y, Math.min(b.y, wa.y + wa.height - h)), // 不超出工作区
+    width: MINI_W, height: h
+  };
+  miniSnapped = side;
+  miniPeek = false;
+  if(opts && opts.animate === false){
+    miniMoving = true; miniWin.setBounds(target); miniMoving = false;
+    sendMiniSnap();
+    startHoverPoll();
+  }else{
+    animateBounds(target, ANIM_SNAP, () => { sendMiniSnap(); startHoverPoll(); }); // 滑出完成再切细条视图（过程中卡片在滑动）
+  }
+}
+
+/* 悬停展开：主进程光标轮询发现光标进入细条 → 切回卡片并滑回屏内；换成离开检测轮询负责自动收回 */
+function peekShow(){
+  if(!miniWin || miniWin.isDestroyed() || !miniSnapped || miniPeek) return;
+  miniPeek = true;
+  if(hoverPoll){ clearInterval(hoverPoll); hoverPoll = null; }
   const wa = screen.getPrimaryDisplay().workArea;
   const b = miniWin.getBounds();
-  const h = Math.round(wa.height / 3);
-  miniSnapped = side;
-  miniMoving = true;
-  miniWin.setBounds({ // 贴边竖条：宽 12px、高约屏幕 1/3、垂直方向以拖动点为中心
-    x: side === 'left' ? wa.x : wa.x + wa.width - SNAP_W,
-    y: Math.max(wa.y, Math.min(Math.round(b.y + b.height/2 - h/2), wa.y + wa.height - h)),
-    width: SNAP_W, height: h
-  });
-  miniMoving = false;
-  sendMiniSnap();
+  const h = miniCollapsed ? MINI_H_MIN : MINI_H;
+  const target = {
+    x: miniSnapped === 'left' ? wa.x : wa.x + wa.width - MINI_W,
+    y: Math.max(wa.y, Math.min(b.y, wa.y + wa.height - h)),
+    width: MINI_W, height: h
+  };
+  sendMiniPeek(true); // 先切回卡片再滑出
+  animateBounds(target, ANIM_PEEK);
+  cursorPoll = setInterval(() => {
+    if(!miniWin || miniWin.isDestroyed() || !miniPeek){ clearSnapTimers(); return; }
+    const p = screen.getCursorScreenPoint(), bb = miniWin.getBounds();
+    const inside = p.x >= bb.x && p.x < bb.x + bb.width && p.y >= bb.y && p.y < bb.y + bb.height;
+    if(inside){ if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; } }
+    else if(!hideTimer){ hideTimer = setTimeout(peekHide, HIDE_DELAY); }
+  }, POLL_MS);
+}
+
+/* 自动收回：滑回细条位后切回细条视图 */
+function peekHide(){
+  if(!miniPeek) return;
+  miniPeek = false;
+  clearSnapTimers();
+  closeMiniEditor(); // 收回即关弹窗（浮窗位置变化，锚点失效）
+  if(!miniWin || miniWin.isDestroyed() || !miniSnapped) return;
+  const wa = screen.getPrimaryDisplay().workArea;
+  const b = miniWin.getBounds();
+  animateBounds({
+    x: miniSnapped === 'left' ? wa.x - (MINI_W - SLIVER) : wa.x + wa.width - SLIVER,
+    y: b.y, width: MINI_W, height: b.height
+  }, ANIM_SNAP, () => { sendMiniPeek(false); startHoverPoll(); });
 }
 
 function onMiniMove(){
-  if(miniMoving || !miniWin || miniWin.isDestroyed()) return;
+  if(miniMoving || miniAnimating || !miniWin || miniWin.isDestroyed()) return;
   closeMiniEditor(); // 拖动浮窗即关弹窗（弹窗位置锚定浮窗，拖动后锚点失效）
   const wa = screen.getPrimaryDisplay().workArea;
   const b = miniWin.getBounds();
-  const SNAP = 8, UNSNAP = 28;
-  if(miniSnapped){ // 吸附中：拖离边缘则恢复正常浮窗
-    const nearLeft = b.x <= wa.x + UNSNAP, nearRight = b.x + b.width >= wa.x + wa.width - UNSNAP;
-    if(!nearLeft && !nearRight){
+  if(miniSnapped){ // 吸附/悬停展开中：拖离边缘 >28px 则恢复正常浮窗（位置以拖动点为中心）
+    const far = b.x > wa.x + UNSNAP && b.x + b.width < wa.x + wa.width - UNSNAP;
+    if(far){
       miniSnapped = null;
-      const w = MINI_W, h = miniCollapsed ? MINI_H_MIN : MINI_H;
-      miniMoving = true;
-      miniWin.setBounds({ x: Math.round(b.x + b.width/2 - w/2), y: b.y, width: w, height: h });
-      miniMoving = false;
-      sendMiniSnap();
+      miniPeek = false;
+      clearSnapTimers();
+      const h = miniCollapsed ? MINI_H_MIN : MINI_H;
+      animateBounds({ x: Math.round(b.x + b.width/2 - MINI_W/2), y: b.y, width: MINI_W, height: h }, ANIM_UNSNAP);
+      sendMiniSnap();      // null → 渲染层回卡片并清 rft_mini_snap
+      sendMiniPeek(false); // 保险：清 peek 态
     }
     return;
   }
-  if(b.x <= wa.x + SNAP) snapMiniTo('left');
-  else if(b.x + b.width >= wa.x + wa.width - SNAP) snapMiniTo('right');
+  // 未吸附：进 20px 触发区且停留 300ms 才吸附（快速扫过不触发）
+  const nearLeft = b.x <= wa.x + EDGE_ZONE, nearRight = b.x + b.width >= wa.x + wa.width - EDGE_ZONE;
+  if(nearLeft || nearRight){
+    if(!pendingSnapTimer){
+      pendingSnapTimer = setTimeout(() => {
+        pendingSnapTimer = null;
+        if(!miniWin || miniWin.isDestroyed() || miniAnimating || miniMoving || miniSnapped) return;
+        const bb = miniWin.getBounds();
+        const inL = bb.x <= wa.x + EDGE_ZONE, inR = bb.x + bb.width >= wa.x + wa.width - EDGE_ZONE;
+        if(inL || inR) snapHide(inL ? 'left' : 'right');
+      }, DWELL_MS);
+    }
+  }else if(pendingSnapTimer){ clearTimeout(pendingSnapTimer); pendingSnapTimer = null; }
 }
 
 function createMiniWin(){
@@ -135,7 +244,7 @@ function createMiniWin(){
   miniWin.loadFile(path.join(__dirname, '..', 'mini.html'));
   miniWin.once('ready-to-show', () => { miniWin.show(); sendMiniSnap(); });
   miniWin.on('move', onMiniMove);
-  miniWin.once('closed', () => { miniWin = null; miniSnapped = null; closeMiniEditor(); updateTrayMenu(); });
+  miniWin.once('closed', () => { miniWin = null; miniSnapped = null; miniPeek = false; clearSnapTimers(); closeMiniEditor(); updateTrayMenu(); });
   updateTrayMenu();
 }
 
@@ -143,7 +252,7 @@ function createMiniWin(){
    锚点：浮窗渲染进程报来时间数字的窗内坐标，主进程换算屏幕坐标；阴影留白 36px 在 mini-editor.html 的 body padding */
 function closeMiniEditor(){ if(miniEditorWin && !miniEditorWin.isDestroyed()) miniEditorWin.close(); miniEditorWin = null; }
 ipcMain.on('rft:mini:editoropen', (e, anchor) => {
-  if(!miniWin || miniWin.isDestroyed() || miniSnapped || !anchor) return;
+  if(!miniWin || miniWin.isDestroyed() || (miniSnapped && !miniPeek) || !anchor) return; // 细条隐藏态不可开，悬停展开（peek）中可以
   closeMiniEditor();
   const b = miniWin.getBounds();
   const wa = screen.getPrimaryDisplay().workArea;
@@ -181,7 +290,8 @@ ipcMain.on('rft:mini:collapse', (e, c) => {
     miniWin.setBounds({ x: b.x, y: b.y, width: MINI_W, height: miniCollapsed ? MINI_H_MIN : MINI_H });
   }
 });
-ipcMain.on('rft:mini:snapstate', (e, side) => { if(side && miniWin) snapMiniTo(side); }); // 浮窗启动时回报记忆的吸附侧
+ipcMain.on('rft:mini:snapstate', (e, side) => { if(side && miniWin) snapHide(side, { animate: false }); }); // 浮窗启动时回报记忆的吸附侧（直接到位，无动画）
+ipcMain.on('rft:mini:peekshow', () => peekShow()); // 细条悬停 → 展开完整卡片
 ipcMain.on('rft:mini:cmd', (e, cmd) => { if(win && !win.isDestroyed()) win.webContents.send('rft:mini:cmd', cmd); });
 ipcMain.on('rft:mini:state', (e, s) => { if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:state', s); });
 ipcMain.on('rft:win:show', showWin);

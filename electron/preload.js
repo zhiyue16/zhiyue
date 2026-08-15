@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   miniState: (s) => ipcRenderer.send('rft:mini:state', s),
   onMiniState: (cb) => ipcRenderer.on('rft:mini:state', (e, s) => cb(s)),
   onMiniSnap: (cb) => ipcRenderer.on('rft:mini:snap', (e, v) => cb(v)),
+  // 贴边隐藏的悬停展开（v1.28.3）：细条 mouseenter 请求展开；peek 广播切换卡片/细条视图
+  miniPeekShow: () => ipcRenderer.send('rft:mini:peekshow'),
+  onMiniPeek: (cb) => ipcRenderer.on('rft:mini:peek', (e, v) => cb(v)),
   // 时长弹窗独立窗口（v1.28.2）：浮窗发锚点开窗；弹窗页发 commit/cancel 结果
   miniEditorOpen: (anchor) => ipcRenderer.send('rft:mini:editoropen', anchor),
   miniEditorCommit: (v) => ipcRenderer.send('rft:mini:editorcmd', { type: 'commit', value: v }),

@@ -27,6 +27,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   if (!browser) throw new Error('无法连接 Electron 调试端口（详见 electron-app.log）');
   const pages = await browser.pages();
   const page = pages.find(p => p.url().includes('index.html')) || pages[0];
+  // 清掉 puppeteer 接管时下发的 defaultViewport 800×600 覆盖（否则渲染视口与 OS 窗口错位、输入路由出错）
+  await page.setViewport(null);
   await page.reload({ waitUntil: 'load' }); // 重载拿到最新代码
   await sleep(2500); // 等页面完全稳定再截图（避免捕获到启动过渡态）
   await page.screenshot({ path: path.join(OUT, 'frameless-normal.png') });
