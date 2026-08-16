@@ -1,7 +1,7 @@
 {
-  "version": "v1.28.4",
+  "version": "v1.28.5",
   "date": "2026-08-16",
   "notes": [
-    "纯结构重构：拆分 index.html 为 index.html + app.css + app.js，无功能变化"
+    "关于区新增开源仓库链接，客户端内点击用系统浏览器打开"
   ]
 }

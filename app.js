@@ -1183,6 +1183,11 @@ render();
 const isElectron = typeof window.electronAPI !== 'undefined';
 if(isElectron){
   $('gmMini').style.display = ''; // 齿轮菜单显示「Mini 模式」（网页版保持隐藏）
+  // 开源仓库链接：客户端走主进程 shell.openExternal（系统浏览器），不允许 target=_blank 开裸窗口
+  $('repoLink').addEventListener('click', e => {
+    e.preventDefault();
+    window.electronAPI.openExternal('https://github.com/zhiyue16/zhiyue');
+  });
   /* Mini 浮窗命令执行（v1.27.0）：全部走主窗口同一批函数，浮窗只是遥控器，不跑第二套计时 */
   window.electronAPI.onMiniCmd(c => {
     if(!c || !c.type) return;

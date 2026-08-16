@@ -59,6 +59,7 @@ async function newPage(seed, query, electron, ctx) {
         miniEditorOpen: a => { window.__miniEditorOpen = a; },
         miniEditorCommit: v => { (window.__editorCommits = window.__editorCommits||[]).push(v); },
         miniEditorCancel: () => { window.__editorCancels = (window.__editorCancels||0)+1; },
+        openExternal: u => { (window.__openExternal = window.__openExternal||[]).push(u); },
         showMainWindow: () => { window.__showMain = (window.__showMain||0)+1; } };
     }
     if (seedStr) {
@@ -664,6 +665,12 @@ async function tElectronShim() {
        && (await txt(page, 'checkUpdateStatus')).includes('发现新版本 v9.9.9-test'));
   await page.click('#checkUpdate'); await sleep(200);
   pass('Electron: 点击触发后台下载', await page.evaluate(() => window.__updDownloads === 1));
+  // --- 开源仓库链接（v1.28.5）：客户端走 openExternal，不允许页面跳转/裸窗口 ---
+  const beforeUrl = await page.evaluate(() => location.href);
+  await page.click('#repoLink'); await sleep(250);
+  pass('Electron: 仓库链接走 openExternal', await page.evaluate(() =>
+    (window.__openExternal||[]).includes('https://github.com/zhiyue16/zhiyue')));
+  pass('Electron: 点击后页面未跳转', (await page.evaluate(() => location.href)) === beforeUrl);
   await page.evaluate(() => window.__updCb({ state: 'ready', version: '1.26.0' })); await sleep(150);
   pass('Electron: 更新就绪按钮变「重启升级」', (await txt(page, 'checkUpdate')) === '重启升级');
   await page.click('#checkUpdate'); await sleep(150);
@@ -935,8 +942,13 @@ async function tSwAndMisc() {
   const swOk = await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()));
   pass('PWA: Service Worker 注册成功', swOk);
   pass('备份: 导出/导入按钮存在', !!(await page.$('#exportData')) && !!(await page.$('#importData')));
-  const version = await page.evaluate(() => document.body.innerHTML.includes('v1.28.4'));
-  pass('版本: 关于区 v1.28.4', version);
+  pass('关于区: 开源仓库链接存在且属性正确', await page.evaluate(() => {
+    const a = document.getElementById('repoLink');
+    return !!a && a.getAttribute('href') === 'https://github.com/zhiyue16/zhiyue'
+      && a.getAttribute('target') === '_blank' && a.getAttribute('rel') === 'noopener';
+  }));
+  const version = await page.evaluate(() => document.body.innerHTML.includes('v1.28.5'));
+  pass('版本: 关于区 v1.28.5', version);
   // version.json 可实时拉取（更新提示条的数据源），且不走 SW 缓存
   const vinfo = await page.evaluate(async () => {
     const r = await fetch('./version.json?t=' + Date.now(), {cache:'no-store'});

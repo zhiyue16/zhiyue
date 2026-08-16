@@ -2,7 +2,7 @@
 // 关键模式参考 Stretchly（github.com/hovancik/stretchly）：
 //   单例窗口 + show:false/ready-to-show 防白闪 + window-all-closed 空函数托盘驻留
 //   + setAppUserModelId（Windows 通知归属）+ setLoginItemSettings 自启
-const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, globalShortcut, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, ipcMain, globalShortcut, nativeImage, screen, shell } = require('electron');
 const path = require('path');
 
 const APP_ID = 'com.zhiyue.focustimer'; // 必须与 package.json build.appId 一致，否则 Windows 通知丢应用名/图标
@@ -295,6 +295,12 @@ ipcMain.on('rft:mini:peekshow', () => peekShow()); // 细条悬停 → 展开完
 ipcMain.on('rft:mini:cmd', (e, cmd) => { if(win && !win.isDestroyed()) win.webContents.send('rft:mini:cmd', cmd); });
 ipcMain.on('rft:mini:state', (e, s) => { if(miniWin && !miniWin.isDestroyed()) miniWin.webContents.send('rft:mini:state', s); });
 ipcMain.on('rft:win:show', showWin);
+
+/* 外部链接（v1.28.5）：主进程白名单精确匹配后才用系统浏览器打开，其他 URL 一律静默拒绝 */
+const OPEN_EXTERNAL_ALLOW = new Set(['https://github.com/zhiyue16/zhiyue']);
+ipcMain.on('rft:open-external', (e, url) => {
+  if(typeof url === 'string' && OPEN_EXTERNAL_ALLOW.has(url)) shell.openExternal(url);
+});
 
 /* 原生通知：渲染进程经 preload 的 electronAPI.notify(kind) → 此通道。
    点击通知唤起主窗口 */

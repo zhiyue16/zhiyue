@@ -37,5 +37,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   miniEditorOpen: (anchor) => ipcRenderer.send('rft:mini:editoropen', anchor),
   miniEditorCommit: (v) => ipcRenderer.send('rft:mini:editorcmd', { type: 'commit', value: v }),
   miniEditorCancel: () => ipcRenderer.send('rft:mini:editorcmd', { type: 'cancel' }),
+  // 外部链接（v1.28.5）：渲染进程报 URL，主进程白名单校验后 shell.openExternal
+  openExternal: (url) => ipcRenderer.send('rft:open-external', url),
   showMainWindow: () => ipcRenderer.send('rft:win:show')
 });
