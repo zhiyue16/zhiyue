@@ -935,8 +935,8 @@ async function tSwAndMisc() {
   const swOk = await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration()));
   pass('PWA: Service Worker 注册成功', swOk);
   pass('备份: 导出/导入按钮存在', !!(await page.$('#exportData')) && !!(await page.$('#importData')));
-  const version = await page.evaluate(() => document.body.innerHTML.includes('v1.25.0'));
-  pass('版本: 关于区 v1.25.0', version);
+  const version = await page.evaluate(() => document.body.innerHTML.includes('v1.28.4'));
+  pass('版本: 关于区 v1.28.4', version);
   // version.json 可实时拉取（更新提示条的数据源），且不走 SW 缓存
   const vinfo = await page.evaluate(async () => {
     const r = await fetch('./version.json?t=' + Date.now(), {cache:'no-store'});
